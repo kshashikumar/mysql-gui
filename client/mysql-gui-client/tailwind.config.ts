@@ -21,6 +21,7 @@ export default {
         fontFamily: {
             display: ['Oswald', 'sans-serif'],
             body: ['Poppins', 'sans-serif'],
+            mono: ['Menlo', 'Monaco', 'Courier New', 'monospace'],
         },
         container: {
             center: true,

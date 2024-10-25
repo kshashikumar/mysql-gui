@@ -41,7 +41,6 @@ export class SideBarComponent implements OnInit {
                 (data) => {
                     this.databases = data;
                     this.cdr.detectChanges();
-                    console.log(this.databases['databases']);
                 },
                 (error) => {
                     console.error('Error fetching databases', error);

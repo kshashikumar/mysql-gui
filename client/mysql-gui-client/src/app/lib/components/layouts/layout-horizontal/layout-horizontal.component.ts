@@ -17,7 +17,6 @@ export class LayoutHorizontalComponent {
     constructor() {}
     tabData: newTabData;
     handleNewTabData(event: newTabData) {
-        console.log('Inside Home: ' + event.dbName);
         this.tabData = event;
     }
 }

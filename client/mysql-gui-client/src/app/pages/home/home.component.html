@@ -1,37 +1,49 @@
 <div class="flex h-[calc(100vh-65px)] flex-col">
-    <!-- Top fixed content -->
-    <div class="bg-gray-400 p-2 text-sm">Tabs</div>
-    <div class="bg-gray-200 p-2 text-lg dark:bg-gray-800">Tools</div>
+    <div
+        *ngIf="tabs.length > 0"
+        class="border-2 border-b border-gray-200 bg-gray-400 text-center text-sm font-medium text-gray-500"
+    >
+        <ul class="flex flex-wrap">
+            <li
+                *ngFor="let tab of tabs; let i = index"
+                class="flex items-center text-black"
+                [ngStyle]="{ 'background-color': selectedTab === i ? 'white' : 'transparent' }"
+            >
+                <a
+                    href="#"
+                    (click)="selectTab(i)"
+                    class="inline-block rounded-t-lg p-2 text-xs font-semibold"
+                >
+                    {{ tab.tableName }}
+                </a>
+                <span
+                    class="text-md mr-2 cursor-pointer"
+                    (click)="closeTab(i)"
+                    >&times;</span
+                >
+            </li>
+        </ul>
+    </div>
 
-    <!-- Flex-grow content that divides remaining space -->
-    <div class="flex-1 overflow-auto bg-gray-100 p-2 dark:bg-gray-900">
-        <div class="mb-1 flex items-center justify-between text-sm font-semibold">
-            <div class="flex flex-col items-center">
-                <!-- Tabs navigation -->
-                <div class="mb-4 flex space-x-2 border-b-2 border-gray-200">
-                    <button
-                        *ngFor="let tab of tabs"
-                        class="border-b-4 border-transparent px-4 py-2 text-sm font-medium text-gray-600 hover:border-blue-600 hover:text-blue-600"
-                        [ngClass]="{ 'border-blue-600 text-blue-600': selectedTab === tab }"
-                        (click)="selectTab(tab)"
-                    ></button>
-                </div>
+    <div class="bg-gray-200 p-2 text-sm dark:bg-gray-800">Tools</div>
 
-                <!-- Tab content -->
-                <div class="w-full">
-                    <div
-                        *ngIf="selectedTab === 1"
-                        class="p-4"
-                    >
-                        <p class="text-gray-700">Content for Tab 1</p>
-                    </div>
-                </div>
+    <div class="flex flex-1 flex-col overflow-auto bg-gray-100 dark:bg-gray-900">
+        <div class="flex flex-1 flex-col">
+            <div
+                *ngIf="selectedTab !== -1"
+                class="flex-1"
+            >
+                <textarea
+                    #editor
+                    class="h-full w-full resize-none rounded-md bg-white p-4"
+                ></textarea>
             </div>
         </div>
     </div>
+
     <div class="flex-1 overflow-auto bg-gray-100 p-2 dark:bg-gray-900">
         <div class="mb-1 flex items-center justify-between text-sm font-semibold">
-            <div class="p-2 text-sm">Result Grid</div>
+            <div class="text-sm"><app-resultgrid></app-resultgrid></div>
         </div>
     </div>
 </div>
