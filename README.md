@@ -168,6 +168,10 @@ To disable authentication, comment out or remove these variables from `.env` and
 
 MYSQL GUI is open for **contributions**! If you have ideas for features, improvements, or bug fixes, feel free to submit a pull request or open an issue.
 
+## Demo
+
+![MYSQL-GUI](assets/mysql-gui-gif.gif)
+
 ## License
 
 MYSQL GUI is distributed under the [MIT License](LICENSE). This license permits commercial use, modification, distribution, and private use, with the requirement to include the original copyright and license notice.
