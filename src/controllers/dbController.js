@@ -135,27 +135,45 @@ const getTables = async (req, res) => {
 const executeQuery = async (req, res) => {
   const dbName = req.params.dbName;
   let { query, page = 1, pageSize = 10 } = req.body;
+
   try {
     await DBConnector.ConnectToDb(dbName);
 
-    query = query.trim().replace(/;$/, "");
-    const hasLimitOrOffset =
-      /LIMIT\s+\d+/i.test(query) || /OFFSET\s+\d+/i.test(query);
-    let paginatedQuery;
-    if (!hasLimitOrOffset) {
-      const offset = (page - 1) * pageSize;
-      paginatedQuery = `${query} LIMIT ${pageSize} OFFSET ${offset}`;
-    } else {
-      paginatedQuery = query;
+    const queries = query
+      .split(";")
+      .map((q) => q.trim())
+      .filter((q) => q);
+
+    let result = [];
+    let totalRows = null;
+
+    for (const singleQuery of queries) {
+      const isSelectQuery = /^SELECT\s/i.test(singleQuery);
+
+      let paginatedQuery = singleQuery;
+      if (isSelectQuery) {
+        const hasLimitOrOffset =
+          /LIMIT\s+\d+/i.test(singleQuery) || /OFFSET\s+\d+/i.test(singleQuery);
+
+        if (!hasLimitOrOffset) {
+          const offset = (page - 1) * pageSize;
+          paginatedQuery = `${singleQuery} LIMIT ${pageSize} OFFSET ${offset}`;
+        }
+
+        const queryInfo = await DBConnector.GetDB().raw(paginatedQuery);
+        result.push(...queryInfo[0]);
+
+        if (totalRows === null) {
+          const totalRowsQuery = `SELECT COUNT(*) as count FROM (${singleQuery}) as subquery`;
+          const totalRowsResult = await DBConnector.GetDB().raw(totalRowsQuery);
+          totalRows = totalRowsResult[0][0].count;
+        }
+      } else {
+        await DBConnector.GetDB().raw(singleQuery);
+      }
     }
 
-    const queryInfo = await DBConnector.GetDB().raw(paginatedQuery);
-
-    const totalRowsQuery = `SELECT COUNT(*) as count FROM (${query}) as subquery`;
-    const totalRowsResult = await DBConnector.GetDB().raw(totalRowsQuery);
-    const totalRows = totalRowsResult[0][0].count;
-
-    res.status(200).json({ rows: queryInfo[0], totalRows });
+    res.status(200).json({ rows: result, totalRows });
   } catch (err) {
     console.error("Error fetching queryInfo:", err);
 
