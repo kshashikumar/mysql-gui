@@ -116,19 +116,96 @@ const getDatabases = async (req, res) => {
   }
 };
 
+const getDatabaseNames = async (req, res) => {
+  try {
+    const databases = await DBConnector.GetDB().raw(`
+      SELECT 
+        SCHEMA_NAME AS name
+      FROM INFORMATION_SCHEMA.SCHEMATA
+    `);
+
+    const databaseNames = databases[0].map(db => db.name);
+
+    res.status(200).json({
+      databases: databaseNames,
+    });
+  } catch (err) {
+    console.error("Error fetching database names:", err);
+    res.status(500).json({ error: "Error fetching database names" });
+  }
+};
+
+
 const getTables = async (req, res) => {
   const dbName = req.params.dbName;
+  console.log("DB Name in table: "+dbName);
   try {
-    // Connect to the specified database
     await DBConnector.ConnectToDb(dbName);
-
-    // Fetch the tables
     const tables = await DBConnector.GetDB().raw("SHOW TABLES");
-    console.log("Tables:", tables[0]);
-    res.status(200).json(tables[0]);
+    const tableNames = tables[0].map(table => Object.values(table)[0]); // Extract the first value, which is the table name
+    res.status(200).json({tables: tableNames}); // Return only the table names
   } catch (err) {
     console.error("Error fetching tables:", err);
     res.status(500).json({ error: "Error fetching tables" });
+  }
+};
+
+const getColumns = async (req, res) => {
+  const dbName = req.params.dbName;
+  const tableName = req.params.tableName;
+  console.log("DB Name in columns: " + dbName);
+  console.log("Table Name in columns: " + tableName);
+
+  try {
+    await DBConnector.ConnectToDb(dbName);
+    const columns = await DBConnector.GetDB().raw(`
+      SELECT COLUMN_NAME AS column_name
+      FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?
+    `, [dbName, tableName]);
+    
+    const columnNames = columns[0].map(column => column.column_name); // Extract column names
+    res.status(200).json({ columns: columnNames }); // Return only the column names
+  } catch (err) {
+    console.error("Error fetching columns:", err);
+    res.status(500).json({ error: "Error fetching columns" });
+  }
+};
+
+
+const getViews = async (req, res) => {
+  const dbName = req.params.dbName;
+  try {
+    await DBConnector.ConnectToDb(dbName);
+    const views = await DBConnector.GetDB().raw("SHOW FULL TABLES WHERE TABLE_TYPE = 'VIEW'");
+    res.status(200).json(views[0]);
+  } catch (err) {
+    console.error("Error fetching views:", err);
+    res.status(500).json({ error: "Error fetching views" });
+  }
+};
+
+const getProcedures = async (req, res) => {
+  const dbName = req.params.dbName;
+  try {
+    await DBConnector.ConnectToDb(dbName);
+    const procedures = await DBConnector.GetDB().raw("SHOW PROCEDURE STATUS WHERE Db = ?", [dbName]);
+    res.status(200).json(procedures[0]);
+  } catch (err) {
+    console.error("Error fetching procedures:", err);
+    res.status(500).json({ error: "Error fetching procedures" });
+  }
+};
+
+const getFunctions = async (req, res) => {
+  const dbName = req.params.dbName;
+  try {
+    await DBConnector.ConnectToDb(dbName);
+    const functions = await DBConnector.GetDB().raw("SHOW FUNCTION STATUS WHERE Db = ?", [dbName]);
+    res.status(200).json(functions[0]);
+  } catch (err) {
+    console.error("Error fetching functions:", err);
+    res.status(500).json({ error: "Error fetching functions" });
   }
 };
 
@@ -189,6 +266,11 @@ const executeQuery = async (req, res) => {
 
 module.exports = {
   getDatabases,
+  getDatabaseNames,
   getTables,
-  executeQuery,
+  getColumns,
+  getViews,
+  getProcedures,
+  getFunctions,
+  executeQuery
 };
