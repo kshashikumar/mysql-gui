@@ -23,6 +23,7 @@ export class ResultGridComponent {
     rows: any[] = [];
     isLoading: boolean = false;
     copiedCell: string | null = null;
+    createMessage: string | null = null;
     errorMessage: string | null = null;
     copiedPosition = { left: 0, top: 0 };
     currentPage: number = 1;
@@ -34,9 +35,16 @@ export class ResultGridComponent {
 
     ngOnChanges(changes: SimpleChanges) {
         if (changes['triggerQuery'] || changes['dbName'] || changes['tabId']) {
-            if (this.dbName != '' && this.triggerQuery != '') {
+            if (this.dbName !== '' && this.dbName !== 'schema_name' && this.triggerQuery !== '') {
                 this.currentPage = 1;
                 this.executeQuery();
+            } else {
+                this.createMessage = 'A new tab has been created. Please enter your query!';  
+                this.isLoading = false;
+                this.rows = [];
+                this.headers = [];
+                this.cdr.markForCheck();
+                return;
             }
         }
     }

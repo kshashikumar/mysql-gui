@@ -53,9 +53,17 @@
     >
         <p class="text-lg font-semibold">{{ errorMessage }}</p>
     </div>
-
+    
     <div
-        *ngIf="!isLoading && !errorMessage && rows.length === 0"
+        *ngIf="createMessage"
+        class="flex items-center justify-center p-4 text-center text-blue-600"
+    >
+        <p class="text-lg font-semibold">{{ createMessage }}</p>
+    </div>
+    
+    
+    <div
+        *ngIf="!isLoading && !errorMessage && !createMessage && rows.length === 0"
         class="flex items-center justify-center p-4 text-center text-gray-600"
     >
         <p class="text-lg font-semibold">The query was executed successfully, but there are no rows to display.</p>

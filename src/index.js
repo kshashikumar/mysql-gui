@@ -33,7 +33,7 @@ app.get("/", (req, res) =>
 DBConnector.InitDB(app);
 
 app.once("connectedToDB", () => {
-  const port = argv.p || process.env.PORT || 5000;
+  const port = argv.p || process.env.PORT || 5005;
   app.listen(port, () => {
     console.log(`> Access MySQL GUI at http://localhost:${port}`);
   });

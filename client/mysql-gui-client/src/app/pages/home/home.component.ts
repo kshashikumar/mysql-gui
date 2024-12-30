@@ -49,6 +49,8 @@ export class HomeComponent implements OnInit, OnChanges, AfterViewInit, AfterVie
     totalRows: number = 0;
     paginatedData: any[] = [];
 
+    tableName: string = '';
+
     constructor(private cdr: ChangeDetectorRef, private dbService: BackendService) {}
 
     ngOnInit() {
@@ -205,7 +207,8 @@ export class HomeComponent implements OnInit, OnChanges, AfterViewInit, AfterVie
     }
 
     addTab(dbName: string, tableName: string) {
-        const id = `${dbName}.${tableName}`;
+        // this.showInitDBInfo = false; // Do we need this?
+        const id = `${dbName}.${tableName}.${new Date().getTime()}`; // Generate unique tab id, by using timestamp
         const tabIndex = this.tabs.findIndex((tab) => tab.id === id);
         if (tabIndex > -1) {
             this.selectTab(tabIndex);
@@ -251,7 +254,7 @@ export class HomeComponent implements OnInit, OnChanges, AfterViewInit, AfterVie
                 console.warn(`Database ${dbName} not found in InitDBInfo.`);
             }
         }
-
+        // this.executeTriggered = false;// Do we need this?
         this.cdr.detectChanges();
         this.scrollTabIntoView(this.tabs.length - 1);
     }
@@ -300,9 +303,53 @@ export class HomeComponent implements OnInit, OnChanges, AfterViewInit, AfterVie
         }
     }
 
+    updateTableName(index: number, newTableName: string) {
+        this.tabs[index].tableName = newTableName;
+        console.log('Updated table name:', newTableName);
+    }
+
     handleExecQueryClick() {
         this.triggerQuery = this.tabContent[this.selectedTab];
         this.executeTriggered = true;
+
+        // Extract the database name from the query
+        const match = this.triggerQuery.match(/FROM\s+(\w+)\./i);
+        if (match && match[1]) {
+            this.selectedDB = match[1];
+        } else {
+            console.error('Database name not found in query');
+            return;
+        }
+        
+
+        // Extract the table name from the query
+        const matchTable = this.triggerQuery.match(/FROM\s+\w+\.(\w+)/i);
+        if (matchTable && matchTable[1]) {
+            this.tableName = matchTable[1];
+        } else {
+            console.error('Table name not found in query');
+            return;
+        }  
+
+        this.updateTableName(this.selectedTab, this.tableName);
+        // Manually trigger change detection to update the UI
+        this.cdr.detectChanges();
+
+        this.dbService.executeQuery(this.triggerQuery, this.selectedDB).subscribe({
+            next: (result) => {
+                // Handle the result of the query execution
+                console.log('Query executed successfully:', result);
+                // this.updateTableName(this.selectedTab, this.tableName);
+                console.log('Updated Successfully');
+            
+            },
+            error: (error) => {
+                // Handle any errors that occur during query execution
+                console.error('Error executing query:', error);
+            }
+        });
+    
+
     }
 
     handleOpenAIPrompt() {
