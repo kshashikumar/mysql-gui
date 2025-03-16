@@ -8,6 +8,6 @@ COPY package*.json ./
 RUN npm install
 COPY . .
 
-EXPOSE 5000
+EXPOSE 2000
 
 ENTRYPOINT ["sh", "/app/entrypoint.sh"]
