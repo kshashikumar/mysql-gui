@@ -5,6 +5,7 @@ import { LogoComponent } from '../logo/logo.component';
 
 import { AppTheme, ThemeService } from '@lib/services/theme';
 import { Subject, takeUntil } from 'rxjs';
+import { AuthService } from '@lib/services';
 
 @Component({
     selector: 'app-navbar',
@@ -21,8 +22,10 @@ export class NavbarComponent implements OnInit, OnDestroy {
     @Output() aiEnabledEmitter = new EventEmitter<any>();
 
     private readonly _themeService = inject(ThemeService);
+    private readonly _authService = inject(AuthService);
 
     ngOnInit(): void {
+        console.log('NavbarComponent initialized');
         // Subscribe to the theme service to get the initial theme value
         this._themeService.currentTheme$.pipe(takeUntil(this._destroy$)).subscribe((theme) => {
             // Ensure the currentTheme is set correctly
@@ -33,6 +36,21 @@ export class NavbarComponent implements OnInit, OnDestroy {
     ngOnDestroy(): void {
         this._destroy$.complete();
         this._destroy$.unsubscribe();
+    }
+
+    logout() {
+        console.log("Logging out...");
+        sessionStorage.clear();
+        this._authService.logout().subscribe({
+            next: () => {
+                console.log("Logout successful");
+                this._router.navigate(['/login'], { replaceUrl: true }); // Absolute path with replaceUrl
+            },
+            error: (err) => {
+                console.error("Logout failed:", err);
+                this._router.navigate(['/login'], { replaceUrl: true }); // Absolute path with replaceUrl
+            }
+        });
     }
 
     toggleAI() {

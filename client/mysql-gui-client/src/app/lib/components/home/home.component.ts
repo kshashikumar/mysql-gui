@@ -27,6 +27,7 @@ import { BackendService } from '@lib/services';
     standalone: true,
     imports: [CommonModule, RouterModule, FormsModule, ResultGridComponent],
     templateUrl: './home.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class HomeComponent implements OnInit, OnChanges, AfterViewInit, AfterViewChecked {
     @Input() tabData!: newTabData;
@@ -52,6 +53,7 @@ export class HomeComponent implements OnInit, OnChanges, AfterViewInit, AfterVie
     constructor(private cdr: ChangeDetectorRef, private dbService: BackendService) {}
 
     ngOnInit() {
+        console.log('HomeComponent initialized');
         if (this.InitDBInfo) {
             this.initializeData(this.InitDBInfo);
         }

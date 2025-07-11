@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit } from '@angular/core';
 import { RouterModule } from '@angular/router';
 
 @Component({
@@ -9,4 +9,11 @@ import { RouterModule } from '@angular/router';
     templateUrl: './logo.component.html',
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class LogoComponent {}
+export class LogoComponent implements OnInit{
+    constructor() {}
+
+    ngOnInit(): void {
+        // Any initialization logic can go here
+        console.log('LogoComponent initialized');
+    }
+}

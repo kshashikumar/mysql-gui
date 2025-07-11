@@ -35,6 +35,7 @@ export class SideBarComponent implements OnInit {
     constructor(private dbService: BackendService, private cdr: ChangeDetectorRef) {}
 
     ngOnInit(): void {
+        console.log('SidebarComponent initialized');
         this.getDatabases();
     }
 

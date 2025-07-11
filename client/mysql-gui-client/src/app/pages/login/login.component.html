@@ -1,0 +1,47 @@
+<div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-300">
+  <div class="bg-white p-8 rounded-xl shadow-2xl transform transition-all duration-300 hover:shadow-3xl w-full max-w-md">
+    <!-- Logo centered at the top -->
+    <div class="flex justify-center mb-8">
+      <app-logo></app-logo>
+    </div>
+
+    <form [formGroup]="loginForm" (ngSubmit)="onSubmit()" class="space-y-6">
+      <div class="form-group">
+        <label for="username" class="block text-sm font-medium text-gray-700">Username</label>
+        <input
+          type="text"
+          class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition duration-200"
+          id="username"
+          formControlName="username"
+          placeholder="Enter username"
+        />
+      </div>
+
+      <div class="form-group">
+        <label for="password" class="block text-sm font-medium text-gray-700">Password</label>
+        <input
+          type="password"
+          class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition duration-200"
+          id="password"
+          formControlName="password"
+          placeholder="Password"
+        />
+      </div>
+
+      <button
+        type="submit"
+        class="w-full bg-blue-600 text-white py-2 rounded-lg font-semibold hover:bg-blue-700 transition-all duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50"
+        [class]="{'animate-pulse bg-blue-700': isLoading}"
+      >
+        <span *ngIf="!isLoading">Login</span>
+        <span *ngIf="isLoading" class="flex items-center justify-center">
+          <svg class="animate-spin h-5 w-5 mr-2 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+          Loading...
+        </span>
+      </button>
+    </form>
+  </div>
+</div>

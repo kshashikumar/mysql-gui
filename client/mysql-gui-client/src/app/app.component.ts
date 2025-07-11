@@ -7,11 +7,13 @@ import { LayoutHorizontalComponent } from './lib/components/layouts/layout-horiz
 @Component({
     selector: 'app-root',
     standalone: true,
-    imports: [CommonModule, RouterModule, LayoutHorizontalComponent],
+    imports: [CommonModule, RouterModule],
     templateUrl: './app.component.html',
 })
 export class AppComponent implements OnInit {
     private readonly _themeService = inject(ThemeService);
 
-    ngOnInit(): void {}
+    ngOnInit(): void {
+        console.log('AppComponent initialized');
+    }
 }

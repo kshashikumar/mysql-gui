@@ -67,12 +67,16 @@ const getDatabases = async (req, res) => {
         views: viewsData,
       });
     }
+    if (!res.headersSent) {
     res.status(200).json({
       databases: databaseStats,
     });
+  }
   } catch (err) {
     console.error("Error fetching database stats:", err);
-    res.status(500).json({ error: "Error fetching database stats" });
+    if (!res.headersSent) {
+      res.status(500).json({ error: "Error fetching database stats" });
+    }
   }
 };
 
@@ -352,10 +356,21 @@ const executeQuery = async (req, res) => {
   }
 };
 
+const getConnections = async (req, res) => {
+  try {
+    const connections = await DBConnector.GetConnections();
+    res.status(200).json({ connections });
+  } catch (err) {
+    console.error("Error fetching connections:", err);
+    res.status(500).json({ error: "Error fetching connections" });
+  }
+};
+
 module.exports = {
   getDatabases,
   getTables,
   getTableInfo,
   executeQuery,
   getMultipleTablesInfo,
+  getConnections
 };

@@ -7,8 +7,17 @@ const dbRouter = require("./routes/dbRoutes");
 const langchainRouter = require("./routes/langchainRoutes");
 const gZipper = require("connect-gzip-static");
 const bodyParser = require("body-parser");
+const authRouter = require("./routes/authRoutes");
 
 const app = express();
+
+app.use(cors({
+    origin: '*', 
+    methods: ['GET', 'POST', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true
+}));
+
 
 app.use(authMiddleware.authentication);
 
@@ -16,12 +25,12 @@ app.use(express.static("public/mysql-gui-client"));
 
 app.use(gZipper(__dirname + "/public/mysql-gui-client"));
 
-app.use(cors());
 
 app.use(bodyParser.urlencoded({ extended: false }));
 
 app.use(bodyParser.json({ limit: process.env.BODY_SIZE || "50mb" }));
 
+app.use("/api/auth", authRouter);
 app.use("/api/mysql/", dbRouter);
 app.use("/api/mysql/openai", langchainRouter);
 

@@ -60,6 +60,20 @@ class DBConnector {
     }
   }
 
+  static async GetConnections() {
+    try {
+      const db = this.GetDB();
+      const connections = await db.raw(`
+        SELECT SCHEMA_NAME AS name, CONCAT('mysql://root:root@localhost:3306/', SCHEMA_NAME) AS url
+        FROM INFORMATION_SCHEMA.SCHEMATA
+      `);
+      return connections[0].map(conn => ({ name: conn.name, url: conn.url, status: 'Available' }));
+    } catch (err) {
+      console.error("Error fetching connections:", err);
+      return [];
+    }
+  }
+
   // Disconnect the Knex instance properly
   static Disconnect() {
     if (DBConnector.db) {

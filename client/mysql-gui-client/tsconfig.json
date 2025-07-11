@@ -2,7 +2,7 @@
 {
   "compileOnSave": false,
   "compilerOptions": {
-    "baseUrl": "./",
+    "baseUrl": "./src",
     "outDir": "./dist/out-tsc",
     "forceConsistentCasingInFileNames": false,
     "strict": false,
@@ -23,9 +23,9 @@
     "useDefineForClassFields": false,
     "lib": ["ES2022", "dom"],
     "paths": {
-      "@lib/*": ["src/app/lib/*"],
-      "@pages/*": ["src/app/pages/*"],
-      "@env/*": ["src/environments/*"]
+      "@lib/*": ["app/lib/*"],
+      "@pages/*": ["app/pages/*"],
+      "@env/*": ["environments/*"]
     }
   },
   "angularCompilerOptions": {

@@ -1,0 +1,6 @@
+<div class="bg-white p-4 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-200 cursor-pointer"
+         (click)="onSelect.emit(connection)">
+      <h3 class="text-lg font-semibold text-gray-800">{{ connection.name }}</h3>
+      <p class="text-sm text-gray-600">URL: {{ connection.url }}</p>
+      <p class="text-sm text-gray-500">Status: {{ connection.status || 'Disconnected' }}</p>
+    </div>
