@@ -19,10 +19,12 @@ export class NavbarComponent implements OnInit, OnDestroy {
     private readonly _destroy$ = new Subject();
     currentTheme!: AppTheme | null;
     aiEnabled: boolean = false;
+    isOpen: boolean = false;
     @Output() aiEnabledEmitter = new EventEmitter<any>();
 
     private readonly _themeService = inject(ThemeService);
     private readonly _authService = inject(AuthService);
+    connected = sessionStorage.getItem('dbType');
 
     ngOnInit(): void {
         console.log('NavbarComponent initialized');
@@ -51,6 +53,14 @@ export class NavbarComponent implements OnInit, OnDestroy {
                 this._router.navigate(['/login'], { replaceUrl: true }); // Absolute path with replaceUrl
             }
         });
+    }
+
+    toggleDropdown() {
+        this.isOpen = !this.isOpen;
+    }
+
+    goToLanding() {
+        this._router.navigate(['/landing']);
     }
 
     toggleAI() {

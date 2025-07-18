@@ -1,3 +1,10 @@
-<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-    <app-connection-card *ngFor="let conn of connections" [connection]="conn" (onSelect)="onConnectionSelect.emit(conn)"></app-connection-card>
+<!-- src/app/lib/components/connection-list/connection-list.component.html -->
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 p-4">
+  <app-connection-card
+    *ngFor="let conn of connections"
+    [connection]="conn"
+    (onSelect)="onConnectionSelect.emit($event)"
+    (onEdit)="onEditConnection($event)"
+    (onDelete)="onDeleteConnection($event)"
+  ></app-connection-card>
 </div>

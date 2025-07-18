@@ -53,7 +53,6 @@ export class HomeComponent implements OnInit, OnChanges, AfterViewInit, AfterVie
     constructor(private cdr: ChangeDetectorRef, private dbService: BackendService) {}
 
     ngOnInit() {
-        console.log('HomeComponent initialized');
         if (this.InitDBInfo) {
             this.initializeData(this.InitDBInfo);
         }

@@ -15,9 +15,6 @@ const rl = readline.createInterface({
   output: process.stdout,
 });
 
-// Default configurations
-const defaultMysqlUrl = "mysql://root:root@127.0.0.1:3306";
-
 const defaultPort = 5000;
 
 // Supported models
@@ -25,28 +22,6 @@ const supportedModels = {
   openai: ["gpt-4", "gpt-3.5-turbo", "text-davinci-003"],
   gemini: ["gemini-1.5-flash", "gemini-pro", "gemini-lite"],
 };
-
-function askForMysqlUrl() {
-  return new Promise((resolve) => {
-    rl.question(
-      chalk.yellow(
-        `Would you like to use the default MySQL URL (${defaultMysqlUrl})? (yes/no) `
-      ),
-      (answer) => {
-        if (answer.toLowerCase() === "yes") {
-          resolve(defaultMysqlUrl);
-        } else {
-          rl.question(
-            chalk.blue("Please enter your MySQL URL: "),
-            (customUrl) => {
-              resolve(customUrl);
-            }
-          );
-        }
-      }
-    );
-  });
-}
 
 function askForPort() {
   return new Promise((resolve) => {
@@ -155,13 +130,6 @@ async function main() {
       )
     );
     process.exit(1);
-  }
-
-  if (!argv.u) {
-    const mysqlUrl = await askForMysqlUrl();
-    process.env.URL = mysqlUrl;
-  } else {
-    process.env.URL = argv.u;
   }
 
   if (!argv.p) {

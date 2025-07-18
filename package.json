@@ -32,8 +32,12 @@
     "knex": "^3.1.0",
     "langchain": "^0.3.6",
     "minimist": "^1.2.8",
+    "mssql": "^11.0.1",
     "mysql2": "^3.11.3",
-    "nodemon": "^3.1.7"
+    "nodemon": "^3.1.7",
+    "oracledb": "^6.8.0",
+    "pg": "^8.16.3",
+    "sqlite3": "^5.1.7"
   },
   "engines": {
     "node": ">=16.0.0"

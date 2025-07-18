@@ -1,6 +1,12 @@
-<div class="bg-white p-4 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-200 cursor-pointer"
-         (click)="onSelect.emit(connection)">
-      <h3 class="text-lg font-semibold text-gray-800">{{ connection.name }}</h3>
-      <p class="text-sm text-gray-600">URL: {{ connection.url }}</p>
-      <p class="text-sm text-gray-500">Status: {{ connection.status || 'Disconnected' }}</p>
-    </div>
+<div class="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-200 border border-gray-200">
+  <div (click)="onSelectConnection()" class="cursor-pointer">
+    <h3 class="text-lg font-semibold text-gray-800">Server: {{ connection.host }}:{{ connection.port }}</h3>
+    <p class="text-sm text-gray-600">User: {{ connection.username }}</p>
+    <p class="text-sm text-gray-500">Type: {{ connection.dbType }}</p>
+    <p class="text-sm text-gray-500">Status: {{ connection.status || 'Disconnected' }}</p>
+  </div>
+  <div class="mt-4 flex justify-end space-x-2">
+    <button (click)="onEditConnection()" class="px-3 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors duration-200">Edit</button>
+    <button (click)="onDeleteConnection()" class="px-3 py-1 bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors duration-200">Delete</button>
+  </div>
+</div>

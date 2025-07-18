@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database Service
+  postgres:
+    image: postgres:16 # Using Postgres version 16
+    container_name: my-postgres-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: root # The user for your database
+      POSTGRES_PASSWORD: root # The password for your database user
+      POSTGRES_DB: mydatabase # The name of the default database to create
+    ports:
+      - "5432:5432" # Maps your local port 5432 to the container's port 5432
+    volumes:
+      - postgres-data:/var/lib/postgresql/data # Persists database data on your host machine
+
+  # pgAdmin UI Service
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: my-pgadmin-ui
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: root@example.com # The login email for the pgAdmin UI
+      PGADMIN_DEFAULT_PASSWORD: root # The login password for the pgAdmin UI
+    ports:
+      - "5050:80" # Maps your local port 5050 to the container's port 80
+    depends_on:
+      - postgres # Tells Docker to start the postgres service before this one
+
+volumes:
+  # Defines the named volume for data persistence
+  postgres-data:

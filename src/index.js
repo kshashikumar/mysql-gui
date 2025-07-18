@@ -1,51 +1,43 @@
 const express = require("express");
 const cors = require("cors");
 const argv = require("minimist")(process.argv.slice(2));
-const DBConnector = require("./config/dbConnector");
 const authMiddleware = require("./middleware/authentication");
 const dbRouter = require("./routes/dbRoutes");
 const langchainRouter = require("./routes/langchainRoutes");
 const gZipper = require("connect-gzip-static");
 const bodyParser = require("body-parser");
 const authRouter = require("./routes/authRoutes");
+const connectionRouter = require("./routes/connectionRoutes");
 
 const app = express();
 
 app.use(cors({
     origin: '*', 
-    methods: ['GET', 'POST', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    methods: ['GET', 'POST','PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization','X-DB-Type', 'X-Db-Type', 'x-db-type'],
     credentials: true
 }));
 
 
 app.use(authMiddleware.authentication);
-
 app.use(express.static("public/mysql-gui-client"));
-
 app.use(gZipper(__dirname + "/public/mysql-gui-client"));
-
-
 app.use(bodyParser.urlencoded({ extended: false }));
-
 app.use(bodyParser.json({ limit: process.env.BODY_SIZE || "50mb" }));
 
 app.use("/api/auth", authRouter);
-app.use("/api/mysql/", dbRouter);
-app.use("/api/mysql/openai", langchainRouter);
+app.use("/api/sql", dbRouter);
+app.use("/api/connections", connectionRouter);
+app.use("/api/sql/openai", langchainRouter);
 
 app.get("/", (req, res) =>
   res.sendFile(__dirname + "/public/mysql-gui-client/index.html")
 );
 
-//connect to database
-DBConnector.InitDB(app);
 
-app.once("connectedToDB", () => {
-  const port = argv.p || process.env.PORT || 5000;
-  app.listen(port, () => {
-    console.log(`> Access MySQL GUI at http://localhost:${port}`);
-  });
+const port = process.env.PORT || 5000;
+app.listen(port, () => {
+  console.log(`> Access MySQL GUI at http://localhost:${port}`);
 });
 
 // error handler

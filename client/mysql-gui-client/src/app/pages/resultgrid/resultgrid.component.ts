@@ -93,7 +93,7 @@ export class ResultGridComponent {
                 this.cdr.markForCheck();
             },
             (error) => {
-                this.errorMessage = 'An error occurred while executing the query. Please check and try again.';
+                this.errorMessage = error.error.error ||'An error occurred while executing the query. Please check and try again.';
                 console.error('Error fetching data', error);
                 this.isLoading = false;
                 this.rows = [];

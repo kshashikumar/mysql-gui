@@ -4,6 +4,8 @@ require('dotenv').config();
 function authentication(req, res, next) {
 
   console.log("Authentication middleware hit");
+  console.log(req.headers['x-db-type']);
+  console.log("Request path:", req.path);
   
   if (req.method === 'OPTIONS') {
     return next(); // Skip auth for OPTIONS

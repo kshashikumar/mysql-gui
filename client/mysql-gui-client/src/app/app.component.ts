@@ -1,6 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { Component, inject, OnInit } from '@angular/core';
-import { RouterModule } from '@angular/router';
+import { Router, RouterModule } from '@angular/router';
 import { ThemeService } from '@lib/services/theme';
 import { LayoutHorizontalComponent } from './lib/components/layouts/layout-horizontal/layout-horizontal.component';
 
@@ -12,8 +12,7 @@ import { LayoutHorizontalComponent } from './lib/components/layouts/layout-horiz
 })
 export class AppComponent implements OnInit {
     private readonly _themeService = inject(ThemeService);
+    private readonly _router = inject(Router);
 
-    ngOnInit(): void {
-        console.log('AppComponent initialized');
-    }
+    ngOnInit(): void {}
 }

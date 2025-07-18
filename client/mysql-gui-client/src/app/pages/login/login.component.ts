@@ -44,8 +44,7 @@ export class LoginComponent {
            // Handle authentication error (show error message, etc.)
            this.loginForm.reset();
            this.isLoading = false;
-           this.router.navigate(['/login']);
-           alert('Login failed or not required');
+           //this.router.navigate(['/login']);
           this.router.navigate([''], { replaceUrl: true });
          }
        });
