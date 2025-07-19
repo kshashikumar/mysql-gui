@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { Component, EventEmitter, Input, Output, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 
 @Component({
@@ -12,6 +12,14 @@ export class ConfirmationDialogComponent {
   @Input() message: string = 'Are you sure you want to delete this connection?';
   @Output() onConfirm = new EventEmitter<void>();
   @Output() onCancel = new EventEmitter<void>();
+
+  // Close dialog on escape key
+  @HostListener('document:keydown.escape')
+  onEscapeKey(): void {
+    if (this.isOpen) {
+      this.cancel();
+    }
+  }
 
   confirm() {
     this.onConfirm.emit();

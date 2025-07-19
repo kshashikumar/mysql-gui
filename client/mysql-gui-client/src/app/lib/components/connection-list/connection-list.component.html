@@ -1,7 +1,6 @@
-<!-- src/app/lib/components/connection-list/connection-list.component.html -->
-<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 p-4">
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
   <app-connection-card
-    *ngFor="let conn of connections"
+    *ngFor="let conn of connections; trackBy: trackByConnectionId"
     [connection]="conn"
     (onSelect)="onConnectionSelect.emit($event)"
     (onEdit)="onEditConnection($event)"

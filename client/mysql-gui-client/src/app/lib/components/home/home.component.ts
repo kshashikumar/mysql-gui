@@ -10,8 +10,10 @@ import {
     OnInit,
     SimpleChanges,
     ViewChild,
+    OnDestroy,
+    inject,
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { CommonModule, DOCUMENT } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
 import { DbMeta, MultipleTablesInfo, newTabData, openAIEvent } from '@lib/utils/storage/storage.types';
@@ -19,23 +21,26 @@ import { ResultGridComponent } from '@pages/resultgrid/resultgrid.component';
 import * as ace from 'ace-builds';
 import 'ace-builds/src-noconflict/mode-sql';
 import 'ace-builds/src-noconflict/theme-github';
+import 'ace-builds/src-noconflict/theme-monokai';
 import 'ace-builds/src-noconflict/ext-language_tools';
 import { BackendService } from '@lib/services';
+import { DragDropTabDirective } from '@lib/providers/drag-drop.directive';
 
 @Component({
     selector: 'app-home',
     standalone: true,
-    imports: [CommonModule, RouterModule, FormsModule, ResultGridComponent],
+    imports: [CommonModule, RouterModule, FormsModule, ResultGridComponent, DragDropTabDirective],
     templateUrl: './home.component.html',
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class HomeComponent implements OnInit, OnChanges, AfterViewInit, AfterViewChecked {
+export class HomeComponent implements OnInit, OnChanges, AfterViewInit, AfterViewChecked, OnDestroy {
     @Input() tabData!: newTabData;
     @Input() openAIEnabled!: openAIEvent;
     @Input() InitDBInfo!: any;
     @ViewChild('editor', { static: false }) editor: ElementRef;
     @ViewChild('tabContainer', { static: false }) tabContainer: ElementRef;
-    tabs = [];
+
+    tabs: { id: string; dbName: string; tableName: string; displayName: string }[] = [];
     selectedTab = -1;
     tabContent: string[] = [];
     editorInstance: any;
@@ -44,17 +49,36 @@ export class HomeComponent implements OnInit, OnChanges, AfterViewInit, AfterVie
     executeTriggered: boolean = false;
     selectedDB: string = '';
     currentTabId: string = '';
+    editingTabIndex: number | null = null;
+    maxTabs: number = 10;
 
     currentPage: number = 1;
-    pageSize: number = 5;
+    pageSize: number = 6;
     totalRows: number = 0;
     paginatedData: any[] = [];
 
-    constructor(private cdr: ChangeDetectorRef, private dbService: BackendService) {}
+    private darkModeObserver: MutationObserver | null = null;
+    Math = Math;
+    private document = inject(DOCUMENT);
+
+    constructor(
+        private cdr: ChangeDetectorRef,
+        private dbService: BackendService
+    ) {}
 
     ngOnInit() {
         if (this.InitDBInfo) {
             this.initializeData(this.InitDBInfo);
+        }
+        this.setupDarkModeObserver();
+    }
+
+    ngOnDestroy() {
+        if (this.darkModeObserver) {
+            this.darkModeObserver.disconnect();
+        }
+        if (this.editorInstance) {
+            this.editorInstance.destroy();
         }
     }
 
@@ -69,18 +93,47 @@ export class HomeComponent implements OnInit, OnChanges, AfterViewInit, AfterVie
         }
     }
 
+    private setupDarkModeObserver() {
+        if (typeof window !== 'undefined') {
+            this.darkModeObserver = new MutationObserver(() => {
+                if (this.editorInstance) {
+                    this.updateEditorTheme();
+                }
+            });
+            this.darkModeObserver.observe(this.document.documentElement, {
+                attributes: true,
+                attributeFilter: ['class']
+            });
+        }
+    }
+
+    private updateEditorTheme() {
+        if (!this.editorInstance) return;
+        const isDark = this.document.documentElement.classList.contains('dark');
+        this.editorInstance.setTheme(isDark ? 'ace/theme/monokai' : 'ace/theme/github');
+    }
+
+    private isDarkMode(): boolean {
+        return this.document.documentElement.classList.contains('dark');
+    }
+
+    trackByTabId(index: number, tab: any): string {
+        return tab?.id || index;
+    }
+
+    trackByDatabaseName(index: number, database: any): string {
+        return database?.name || index;
+    }
+
     updateDatabaseInfo() {
         const selectedDatabase = this.InitDBInfo?.find((db: any) => db.name === this.selectedDB);
-
         if (selectedDatabase && selectedDatabase.tables?.length) {
             const tableNames = selectedDatabase.tables.map((table: any) => table.name);
-
-            // Call getMultipleTablesInfo for the selected database
-            this.dbService.getMultipleTablesInfo(this.selectedDB, tableNames).subscribe(
-                (tableInfoArray: MultipleTablesInfo) => {
+            this.dbService.getMultipleTablesInfo(this.selectedDB, tableNames).subscribe({
+                next: (tableInfoArray: MultipleTablesInfo) => {
                     tableInfoArray.tables.forEach((tableInfo: any) => {
                         const tableIndex = selectedDatabase.tables.findIndex(
-                            (t: any) => t.name === tableInfo.table_name,
+                            (t: any) => t.name === tableInfo.table_name
                         );
                         if (tableIndex > -1) {
                             selectedDatabase.tables[tableIndex] = {
@@ -92,12 +145,12 @@ export class HomeComponent implements OnInit, OnChanges, AfterViewInit, AfterVie
                             };
                         }
                     });
-                    this.cdr.detectChanges();
+                    this.cdr.markForCheck();
                 },
-                (error) => {
+                error: (error) => {
                     console.error('Error fetching table information for selected database:', error);
-                },
-            );
+                }
+            });
         } else {
             console.warn(`No tables found for selected database: ${this.selectedDB}`);
         }
@@ -120,11 +173,13 @@ export class HomeComponent implements OnInit, OnChanges, AfterViewInit, AfterVie
     }
 
     changePage(newPage: number) {
-        if (newPage > 0 && newPage <= Math.ceil(this.totalRows / this.pageSize)) {
+        if (newPage > 0 && newPage <= this.getTotalPages()) {
             this.currentPage = newPage;
             this.updatePaginatedData();
+            this.cdr.markForCheck();
         }
     }
+
     getTotalPages(): number {
         return this.totalRows > 0 && this.pageSize > 0 ? Math.ceil(this.totalRows / this.pageSize) : 1;
     }
@@ -135,19 +190,15 @@ export class HomeComponent implements OnInit, OnChanges, AfterViewInit, AfterVie
 
     convertToReadableSize(sizeInBytes: any): string {
         sizeInBytes = Number(sizeInBytes);
-
         if (isNaN(sizeInBytes)) {
             return 'Invalid size';
         }
-
         const units = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB'];
         let unitIndex = 0;
-
         while (sizeInBytes >= 1024 && unitIndex < units.length - 1) {
             sizeInBytes /= 1024;
             unitIndex++;
         }
-
         return `${sizeInBytes.toFixed(2)} ${units[unitIndex]}`;
     }
 
@@ -167,13 +218,13 @@ export class HomeComponent implements OnInit, OnChanges, AfterViewInit, AfterVie
 
     initializeEditor() {
         ace.config.set('basePath', 'https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.12/');
-
         if (!this.editorInstance) {
             this.editorInstance = ace.edit(this.editor.nativeElement);
-
+            const isDark = this.isDarkMode();
+            const theme = isDark ? 'ace/theme/monokai' : 'ace/theme/github';
             this.editorInstance.setOptions({
                 mode: 'ace/mode/sql',
-                theme: 'ace/theme/github',
+                theme: theme,
                 fontSize: '14px',
                 showPrintMargin: false,
                 wrap: true,
@@ -186,12 +237,21 @@ export class HomeComponent implements OnInit, OnChanges, AfterViewInit, AfterVie
                 enableLiveAutocompletion: true,
                 enableSnippets: true,
             });
+            const editorContainer = this.editor.nativeElement;
+            if (editorContainer) {
+                editorContainer.style.zIndex = '9999';
+            }
+            const aceOverlays = document.querySelectorAll('.ace_autocomplete, .ace_tooltip');
+            aceOverlays.forEach((overlay) => {
+                (overlay as HTMLElement).style.zIndex = '10000';
+            });
             const langTools = ace.require('ace/ext/language_tools');
             langTools.setCompleters([langTools.snippetCompleter, langTools.textCompleter, langTools.keyWordCompleter]);
             this.editorInstance.on('change', () => {
-                this.tabContent[this.selectedTab] = this.editorInstance.getValue();
+                if (this.selectedTab >= 0) {
+                    this.tabContent[this.selectedTab] = this.editorInstance.getValue();
+                }
             });
-
             this.editorInstance.commands.addCommand({
                 name: 'find',
                 bindKey: { win: 'Ctrl-F', mac: 'Command-F' },
@@ -206,22 +266,24 @@ export class HomeComponent implements OnInit, OnChanges, AfterViewInit, AfterVie
     }
 
     addTab(dbName: string, tableName: string) {
+        if (this.tabs.length >= this.maxTabs) {
+            alert(`Maximum number of tabs (${this.maxTabs}) reached. Please close some tabs.`);
+            return;
+        }
         const id = `${dbName}.${tableName}`;
         const tabIndex = this.tabs.findIndex((tab) => tab.id === id);
         if (tabIndex > -1) {
             this.selectTab(tabIndex);
             return;
         }
-
         this.tabs.push({
             id,
             dbName,
             tableName,
+            displayName: tableName,
         });
-
         this.tabContent.push(`SELECT * FROM ${dbName}.${tableName};`);
         this.selectTab(this.tabs.length - 1);
-
         if (!this.editorInstance) {
             this.needsEditorInit = true;
         } else {
@@ -230,65 +292,47 @@ export class HomeComponent implements OnInit, OnChanges, AfterViewInit, AfterVie
             this.selectedDB = dbName;
             this.currentTabId = id;
         }
+        if (this.openAIEnabled?.openAIEnabled) {
+            this.updateDatabaseInfoIfNeeded(dbName);
+        }
+        this.cdr.markForCheck();
+    }
 
-        // Check if OpenAI is enabled and if table columns are already populated
-        if (this.openAIEnabled) {
-            const selectedDatabase = this.InitDBInfo?.find((db: any) => db.name === dbName);
-
-            if (selectedDatabase) {
-                const allTablesPopulated = selectedDatabase.tables.every(
-                    (table: any) => table.columns && table.columns.length > 0,
-                );
-
-                if (!allTablesPopulated) {
-                    console.log(`Calling updateDatabaseInfo for ${dbName} as not all tables have columns populated.`);
-                    this.updateDatabaseInfo();
-                } else {
-                    console.log(
-                        `Skipping updateDatabaseInfo for ${dbName} as all tables already have columns populated.`,
-                    );
-                }
-            } else {
-                console.warn(`Database ${dbName} not found in InitDBInfo.`);
+    private updateDatabaseInfoIfNeeded(dbName: string) {
+        const selectedDatabase = this.InitDBInfo?.find((db: any) => db.name === dbName);
+        if (selectedDatabase) {
+            const allTablesPopulated = selectedDatabase.tables.every(
+                (table: any) => table.columns && table.columns.length > 0
+            );
+            if (!allTablesPopulated) {
+                console.log(`Calling updateDatabaseInfo for ${dbName} as not all tables have columns populated.`);
+                this.updateDatabaseInfo();
             }
         }
-
-        this.cdr.detectChanges();
-        this.scrollTabIntoView(this.tabs.length - 1);
     }
 
     selectTab(tabIndex: number) {
+        if (tabIndex < 0 || tabIndex >= this.tabs.length) return;
         if (!this.tabContent[tabIndex]) {
             this.tabContent[tabIndex] = '';
         }
-
         this.selectedTab = tabIndex;
         this.selectedDB = this.tabs[tabIndex].dbName;
         this.triggerQuery = this.tabContent[tabIndex];
         this.currentTabId = this.tabs[tabIndex].id;
-
         if (this.editorInstance) {
             this.editorInstance.setValue(this.tabContent[tabIndex]);
         }
         this.executeTriggered = false;
-        this.cdr.detectChanges();
-        this.scrollTabIntoView(tabIndex);
-    }
-
-    scrollTabIntoView(tabIndex: number) {
-        if (this.tabContainer && this.tabContainer.nativeElement) {
-            const tabElement = this.tabContainer.nativeElement.children[tabIndex];
-            if (tabElement) {
-                tabElement.scrollIntoView({ behavior: 'smooth', inline: 'center' });
-            }
-        }
+        this.editingTabIndex = null;
+        this.cdr.markForCheck();
     }
 
     closeTab(tabIndex: number) {
+        if (tabIndex < 0 || tabIndex >= this.tabs.length) return;
         this.tabs.splice(tabIndex, 1);
         this.tabContent.splice(tabIndex, 1);
         this.selectedTab = this.tabs.length ? Math.max(0, tabIndex - 1) : -1;
-
         if (this.editorInstance && this.selectedTab >= 0) {
             this.editorInstance.setValue(this.tabContent[this.selectedTab]);
             this.triggerQuery = this.tabContent[this.selectedTab];
@@ -298,24 +342,94 @@ export class HomeComponent implements OnInit, OnChanges, AfterViewInit, AfterVie
             this.editorInstance?.destroy();
             this.editorInstance = null;
             this.needsEditorInit = true;
+            this.selectedDB = '';
+            this.currentTabId = '';
+            this.triggerQuery = '';
         }
+        this.editingTabIndex = null;
+        this.cdr.markForCheck();
+    }
+
+    closeAllTabs() {
+        this.tabs = [];
+        this.tabContent = [];
+        this.selectedTab = -1;
+        this.selectedDB = '';
+        this.currentTabId = '';
+        this.triggerQuery = '';
+        this.executeTriggered = false;
+        if (this.editorInstance) {
+            this.editorInstance.setValue('');
+            this.editorInstance.destroy();
+            this.editorInstance = null;
+            this.needsEditorInit = true;
+        }
+        this.editingTabIndex = null;
+        this.cdr.markForCheck();
+    }
+
+    startEditingTab(tabIndex: number) {
+        this.editingTabIndex = tabIndex;
+        this.cdr.markForCheck();
+    }
+
+    renameTab(tabIndex: number, newName: string) {
+        if (tabIndex < 0 || tabIndex >= this.tabs.length || !newName.trim()) return;
+        this.tabs[tabIndex].displayName = newName.trim();
+        this.editingTabIndex = null;
+        this.cdr.markForCheck();
+    }
+
+    handleDragStart(index: number) {
+        console.log(`Drag started on tab ${index}`);
+    }
+
+    handleDragOver(event: Event) {
+        event.preventDefault();
+        (event as DragEvent).dataTransfer!.dropEffect = 'move';
+    }
+
+    handleDrop(targetIndex: number) {
+        const sourceIndex = parseInt((event as DragEvent).dataTransfer!.getData('text/plain'), 10);
+        console.log(`Dropped tab ${sourceIndex} onto tab ${targetIndex}`);
+        if (sourceIndex === targetIndex) return;
+        const [movedTab] = this.tabs.splice(sourceIndex, 1);
+        this.tabs.splice(targetIndex, 0, movedTab);
+        const [movedContent] = this.tabContent.splice(sourceIndex, 1);
+        this.tabContent.splice(targetIndex, 0, movedContent);
+        if (this.selectedTab === sourceIndex) {
+            this.selectedTab = targetIndex;
+        } else if (sourceIndex < this.selectedTab && targetIndex >= this.selectedTab) {
+            this.selectedTab--;
+        } else if (sourceIndex > this.selectedTab && targetIndex <= this.selectedTab) {
+            this.selectedTab++;
+        }
+        this.cdr.markForCheck();
+    }
+
+    handleDragEnd() {
+        console.log('Drag ended');
     }
 
     handleExecQueryClick() {
         this.triggerQuery = this.tabContent[this.selectedTab];
         this.executeTriggered = true;
+        this.cdr.markForCheck();
     }
 
     handleOpenAIPrompt() {
-        this.dbService.executeOpenAIPrompt(this.InitDBInfo, this.selectedDB, this.tabContent[this.selectedTab]).subscribe(
-            (data) => {
-                //this.tabContent[this.selectedTab] = data.query;
-                this.editorInstance.setValue(data.query);
+        this.dbService.executeOpenAIPrompt(this.InitDBInfo, this.selectedDB, this.tabContent[this.selectedTab]).subscribe({
+            next: (data) => {
+                if (this.editorInstance) {
+                    this.editorInstance.setValue(data.query);
+                    this.tabContent[this.selectedTab] = data.query;
+                }
+                this.cdr.markForCheck();
             },
-            (error) => {
-                console.log(error);
-            },
-        );
+            error: (error) => {
+                console.error('AI prompt error:', error);
+            }
+        });
     }
 
     onDiscQueryClick() {
@@ -325,9 +439,6 @@ export class HomeComponent implements OnInit, OnChanges, AfterViewInit, AfterVie
         this.tabContent[this.selectedTab] = '';
         this.triggerQuery = '';
         this.executeTriggered = false;
-    }
-
-    convertToGB(sizeInBytes: number): string {
-        return (sizeInBytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+        this.cdr.markForCheck();
     }
 }

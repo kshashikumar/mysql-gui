@@ -1,33 +1,73 @@
-<!-- src/app/landing/landing.component.html -->
- <div class="flex h-screen flex-col overflow-hidden">
-    <app-navbar></app-navbar>
-<div class="container mx-auto p-6">
-  <!-- <div class="flex justify-between items-center mb-6">
-    <app-logo></app-logo>
-    <h2 class="text-3xl font-bold  text-gray-800">Servers</h2>
-    <div class="ml-2 flex items-center space-x-3"> 
-      <button (click)="openAddModal()" class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors duration-200">Add Connection</button>
-      <button (click)="logout()" class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors duration-200">Logout</button>
-    </div>
-  </div> -->
+<div class="min-h-screen bg-gray-50 dark:bg-gray-900">
+  <app-navbar></app-navbar>
   
-  <app-connection-list
-    [connections]="connections"
-    (onConnectionSelect)="onConnectionSelect($event)"
-    (onEdit)="openEditModal($event)"
-    (onDelete)="openDeleteDialog($event)"
-  ></app-connection-list>
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <!-- Header Section -->
+    <div class="mb-8">
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 class="text-2xl font-bold text-gray-900 dark:text-white">
+            Database Connections
+          </h1>
+          <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">
+            Manage your MySQL database connections
+          </p>
+        </div>
+        <div class="mt-4 sm:mt-0">
+          <button
+            (click)="openAddModal()"
+            class="inline-flex items-center px-4 py-2 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
+          >
+            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+            </svg>
+            New Connection
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Connections Grid -->
+    <app-connection-list
+      [connections]="connections"
+      (onConnectionSelect)="onConnectionSelect($event)"
+      (onEdit)="openEditModal($event)"
+      (onDelete)="openDeleteDialog($event)"
+    ></app-connection-list>
+
+    <!-- Empty State -->
+    <div *ngIf="connections.length === 0" class="text-center py-12">
+      <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"></path>
+      </svg>
+      <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-white">No connections</h3>
+      <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Get started by creating a new database connection.</p>
+      <div class="mt-6">
+        <button
+          (click)="openAddModal()"
+          class="inline-flex items-center px-4 py-2 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
+        >
+          <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+          </svg>
+          New Connection
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modals -->
   <app-connection-modal
     [isOpen]="isModalOpen"
     [connection]="selectedConnection || { username: '', password: '', host: '', port: 0, dbType: 'mysql2', database: '', socketPath: '' }"
     (onSave)="saveConnection($event)"
     (onCancel)="closeModal()"
   ></app-connection-modal>
+
   <app-confirmation-dialog
     [isOpen]="isConfirmDialogOpen"
     message="Are you sure you want to delete this connection?"
     (onConfirm)="confirmDelete()"
     (onCancel)="closeConfirmDialog()"
   ></app-confirmation-dialog>
-</div>
 </div>

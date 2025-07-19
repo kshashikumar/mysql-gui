@@ -9,12 +9,56 @@ import { ConnectionCardComponent } from '@lib/components/connection-card/connect
   templateUrl: './connection-list.component.html',
 })
 export class ConnectionListComponent {
-  @Input() connections: { id: string; username: string; password: string; host: string; port: number; dbType: string; database?: string; socketPath?: string; status?: string }[] = [];
-  @Output() onConnectionSelect = new EventEmitter<{ id: string; username: string; password: string; host: string; port: number; dbType: string; database?: string; socketPath?: string }>();
-  @Output() onEdit = new EventEmitter<{ id: string; username: string; password: string; host: string; port: number; dbType: string; database?: string; socketPath?: string }>();
+  @Input() connections: { 
+    id: string; 
+    username: string; 
+    password: string; 
+    host: string; 
+    port: number; 
+    dbType: string; 
+    database?: string; 
+    socketPath?: string; 
+    status?: string 
+  }[] = [];
+  
+  @Output() onConnectionSelect = new EventEmitter<{ 
+    id: string; 
+    username: string; 
+    password: string; 
+    host: string; 
+    port: number; 
+    dbType: string; 
+    database?: string; 
+    socketPath?: string 
+  }>();
+  
+  @Output() onEdit = new EventEmitter<{ 
+    id: string; 
+    username: string; 
+    password: string; 
+    host: string; 
+    port: number; 
+    dbType: string; 
+    database?: string; 
+    socketPath?: string 
+  }>();
+  
   @Output() onDelete = new EventEmitter<string>();
 
-  onEditConnection(connection: { id: string; username: string; password: string; host: string; port: number; dbType: string; database?: string; socketPath?: string }) {
+  trackByConnectionId(index: number, connection: any): string {
+    return connection.id;
+  }
+
+  onEditConnection(connection: { 
+    id: string; 
+    username: string; 
+    password: string; 
+    host: string; 
+    port: number; 
+    dbType: string; 
+    database?: string; 
+    socketPath?: string 
+  }) {
     this.onEdit.emit(connection);
   }
 
