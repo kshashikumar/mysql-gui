@@ -1,9 +1,9 @@
 version: '3'
 
 services:
-  mysql-gui:
-    container_name: "mysql-gui"
-    image: shashikumarkasturi/mysql-gui:latest
+  dbfuse-ai:
+    container_name: "dbfuse-ai"
+    image: shashikumarkasturi/dbfuse-ai:latest
     restart: always
     platform: linux/amd64 
     ports:

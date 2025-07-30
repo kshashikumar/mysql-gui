@@ -28,6 +28,104 @@ services:
     depends_on:
       - postgres # Tells Docker to start the postgres service before this one
 
+  # MySQL Database Service
+  # mysql:
+  #   image: mysql:8.0
+  #   container_name: my-mysql-db
+  #   restart: unless-stopped
+  #   environment:
+  #     MYSQL_ROOT_PASSWORD: root # Root password
+  #     MYSQL_DATABASE: mydatabase # Default database to create
+  #     MYSQL_USER: root # Additional user (optional since root already exists)
+  #     MYSQL_PASSWORD: root # Password for the additional user
+  #   ports:
+  #     - "3306:3306" # Maps your local port 3306 to the container's port 3306
+  #   volumes:
+  #     - mysql-data:/var/lib/mysql # Persists database data
+  #   command: --default-authentication-plugin=mysql_native_password # Use native password authentication
+
+
+  # Microsoft SQL Server Database Service
+  mssql:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: my-mssql-db
+    restart: unless-stopped
+    environment:
+      ACCEPT_EULA: Y # Accept the End-User License Agreement
+      SA_PASSWORD: Root123! # Strong password for the SA user (must meet complexity requirements)
+      MSSQL_PID: Express # Use Express edition (free)
+    ports:
+      - "1433:1433" # Maps your local port 1433 to the container's port 1433
+    volumes:
+      - mssql-data:/var/opt/mssql # Persists database data
+    user: root # Run as root to avoid permission issues
+
+  # Oracle Database Service (Oracle XE)
+  oracle:
+    image: gvenzl/oracle-xe:21-slim
+    container_name: my-oracle-db
+    restart: unless-stopped
+    environment:
+      ORACLE_PASSWORD: root # Password for SYS, SYSTEM and PDBADMIN users
+      ORACLE_DATABASE: MYDATABASE # Name of the database to create
+      ORACLE_CHARACTERSET: AL32UTF8 # Character set
+    ports:
+      - "1521:1521" # Maps your local port 1521 to the container's port 1521
+      - "5500:5500" # Oracle Enterprise Manager Express port
+    volumes:
+      - oracle-data:/opt/oracle/oradata # Persists database data
+    shm_size: 1g # Shared memory size for Oracle
+
+  # SQLite doesn't need a separate container service since it's file-based
+  # But we can create a lightweight container with SQLite tools
+  sqlite:
+    image: nouchka/sqlite3:latest
+    container_name: my-sqlite-tools
+    restart: "no" # Only run when needed
+    volumes:
+      - sqlite-data:/data # Mount volume for SQLite database files
+    command: tail -f /dev/null # Keep container running
+    working_dir: /data
+
+  # Adminer - Universal database management tool (alternative to pgAdmin)
+  # Supports PostgreSQL, MySQL, MariaDB, SQLite, MS SQL, Oracle, Firebird, SimpleDB, Elasticsearch, MongoDB
+  adminer:
+    image: adminer:latest
+    container_name: my-adminer-ui
+    restart: unless-stopped
+    ports:
+      - "8080:8080" # Maps your local port 8080 to the container's port 8080
+    depends_on:
+      - postgres
+      # - mysql
+      - mssql
+      - oracle
+
+  # SQL Server Management Studio Web (CloudBeaver) - Alternative DB management UI
+  cloudbeaver:
+    image: dbeaver/cloudbeaver:latest
+    container_name: my-cloudbeaver-ui
+    restart: unless-stopped
+    ports:
+      - "8978:8978" # Maps your local port 8978 to the container's port 8978
+    volumes:
+      - cloudbeaver-data:/opt/cloudbeaver/workspace
+    depends_on:
+      - postgres
+      # - mysql
+      - mssql
+      - oracle
+
 volumes:
-  # Defines the named volume for data persistence
+  # Defines the named volumes for data persistence
   postgres-data:
+  # mysql-data:
+  mssql-data:
+  oracle-data:
+  sqlite-data:
+  cloudbeaver-data:
+
+# Network configuration (optional - Docker creates a default network)
+networks:
+  database-network:
+    driver: bridge

@@ -32,14 +32,14 @@ const login = async (req, res) => {
   const username = req.body.username;
   const password = req.body.password;
 
-  if (!process.env.MYSQLGUI_USERNAME || !process.env.MYSQLGUI_PASSWORD) {
+  if (!process.env.DBFUSE_USERNAME || !process.env.DBFUSE_PASSWORD) {
     console.log("No env variables set, allowing login without validation");
     return res.status(200).json({ basicToken: basicToken(username, username) }); // Dummy token
   }
 
   if (
-    username === process.env.MYSQLGUI_USERNAME &&
-    password === process.env.MYSQLGUI_PASSWORD
+    username === process.env.DBFUSE_USERNAME &&
+    password === process.env.DBFUSE_PASSWORD
   ) {
     return res.status(200).json({ basicToken: basicToken(username, password) });
   }
@@ -54,7 +54,7 @@ const isAuthenticated = async (req, res) => {
     console.log("IsAuthenticated endpoint hit");
     console.log(req.headers.authorization);
 
-    if (!process.env.MYSQLGUI_USERNAME || !process.env.MYSQLGUI_PASSWORD) {
+    if (!process.env.DBFUSE_USERNAME || !process.env.DBFUSE_PASSWORD) {
       console.log("No env variables set, returning authenticated without validation");
       return res.status(200).json({ authenticated: true });
     }
@@ -63,8 +63,8 @@ const isAuthenticated = async (req, res) => {
   console.log("username:", username);
   console.log("password:", password);
   if (
-    username === process.env.MYSQLGUI_USERNAME &&
-    password === process.env.MYSQLGUI_PASSWORD
+    username === process.env.DBFUSE_USERNAME &&
+    password === process.env.DBFUSE_PASSWORD
   ) {
     console.log("User is authenticated");
     return res.status(200).json({ authenticated: true });

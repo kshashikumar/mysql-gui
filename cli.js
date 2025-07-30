@@ -17,10 +17,36 @@ const rl = readline.createInterface({
 
 const defaultPort = 5000;
 
-// Supported models
+// Supported AI models with pricing info
 const supportedModels = {
-  openai: ["gpt-4", "gpt-3.5-turbo", "text-davinci-003"],
-  gemini: ["gemini-1.5-flash", "gemini-pro", "gemini-lite"],
+  gemini: {
+    models: ["gemini-1.5-flash", "gemini-pro", "gemini-lite"],
+    note: "(Free tier available)"
+  },
+  openai: {
+    models: ["gpt-4", "gpt-4-turbo", "gpt-3.5-turbo", "text-davinci-003"],
+    note: "(Paid - gpt-3.5-turbo most affordable)"
+  },
+  anthropic: {
+    models: ["claude-3-opus", "claude-3-sonnet", "claude-3-haiku", "claude-2.1", "claude-instant"],
+    note: "(Paid - claude-3-haiku most affordable)"
+  },
+  mistral: {
+    models: ["mistral-large", "mistral-medium", "mistral-small", "mixtral-8x7b"],
+    note: "(Paid)"
+  },
+  cohere: {
+    models: ["command", "command-light", "command-nightly", "command-light-nightly"],
+    note: "(Free tier available)"
+  },
+  huggingface: {
+    models: ["microsoft/DialoGPT-medium", "facebook/blenderbot-400M-distill", "microsoft/DialoGPT-large"],
+    note: "(Free)"
+  },
+  perplexity: {
+    models: ["pplx-7b-online", "pplx-70b-online", "llama-2-70b-chat"],
+    note: "(Paid)"
+  }
 };
 
 function askForPort() {
@@ -34,6 +60,28 @@ function askForPort() {
           const portNumber = parseInt(portAnswer, 10);
           resolve(isNaN(portNumber) ? defaultPort : portNumber);
         }
+      }
+    );
+  });
+}
+
+function askForDBUsername() {
+  return new Promise((resolve) => {
+    rl.question(
+      chalk.yellow("Please enter the Database Username (default is root): "),
+      (username) => {
+        resolve(username.trim() === "" ? "root" : username);
+      }
+    );
+  });
+}
+
+function askForDBPassword() {
+  return new Promise((resolve) => {
+    rl.question(
+      chalk.yellow("Please enter the Database Password (default is root): "),
+      (password) => {
+        resolve(password.trim() === "" ? "root" : password);
       }
     );
   });
@@ -53,18 +101,18 @@ function askForAIModel() {
     let counter = 1;
     const modelMap = {};
 
-    console.log(chalk.cyan("\nOpenAI Models:"));
-    supportedModels.openai.forEach((model) => {
-      console.log(`${counter}. ${chalk.green(model)}`);
-      modelMap[counter] = { provider: "OpenAI", model };
-      counter++;
-    });
-
-    console.log(chalk.cyan("\nGoogle Gemini Models:"));
-    supportedModels.gemini.forEach((model) => {
-      console.log(`${counter}. ${chalk.green(model)}`);
-      modelMap[counter] = { provider: "Gemini", model };
-      counter++;
+    Object.entries(supportedModels).forEach(([providerKey, providerData]) => {
+      const providerName = providerKey.charAt(0).toUpperCase() + providerKey.slice(1);
+      console.log(chalk.cyan(`\n${providerName} Models ${providerData.note}:`));
+      
+      providerData.models.forEach((model) => {
+        console.log(`${counter}. ${chalk.green(model)}`);
+        modelMap[counter] = { 
+          provider: providerName === 'Huggingface' ? 'HuggingFace' : providerName, 
+          model 
+        };
+        counter++;
+      });
     });
 
     rl.question(chalk.yellow("Enter your choice: "), (choice) => {
@@ -72,8 +120,8 @@ function askForAIModel() {
       if (selectedModel) {
         resolve(selectedModel);
       } else {
-        console.log(chalk.red("Invalid choice. Defaulting to OpenAI GPT-4."));
-        resolve({ provider: "OpenAI", model: "gpt-4" });
+        console.log(chalk.red("Invalid choice. Defaulting to Gemini 1.5 Flash."));
+        resolve({ provider: "Gemini", model: "gemini-1.5-flash" });
       }
     });
   });
@@ -81,23 +129,23 @@ function askForAIModel() {
 
 function askForAPIKey(provider) {
   return new Promise((resolve) => {
-    if (provider === "OpenAI") {
-      rl.question(
-        chalk.blue("Please enter your OpenAI API Key: "),
-        (apiKey) => {
-          resolve(apiKey);
-        }
-      );
-    } else if (provider === "Gemini") {
-      rl.question(
-        chalk.blue("Please enter your Gemini API Key: "),
-        (apiKey) => {
-          resolve(apiKey);
-        }
-      );
-    } else {
-      resolve("");
-    }
+    const providerMap = {
+      "OpenAI": "OpenAI",
+      "Gemini": "Gemini",
+      "HuggingFace": "Hugging Face",
+      "Cohere": "Cohere",
+      "Anthropic": "Anthropic",
+      "Mistral": "Mistral",
+      "Perplexity": "Perplexity"
+    };
+    
+    const displayName = providerMap[provider] || provider;
+    rl.question(
+      chalk.blue(`Please enter your ${displayName} API Key: `),
+      (apiKey) => {
+        resolve(apiKey);
+      }
+    );
   });
 }
 
@@ -139,19 +187,42 @@ async function main() {
     process.env.PORT = argv.p;
   }
 
+  if (!argv.dbuser) {
+    const dbUsername = await askForDBUsername();
+    process.env.DBFUSE_USERNAME = dbUsername;
+  } else {
+    process.env.DBFUSE_USERNAME = argv.dbuser;
+  }
+
+  if (!argv.dbpass) {
+    const dbPassword = await askForDBPassword();
+    process.env.DBFUSE_PASSWORD = dbPassword;
+  } else {
+    process.env.DBFUSE_PASSWORD = argv.dbpass;
+  }
+
   if (argv.model && argv.apikey) {
     process.env.AI_MODEL = argv.model;
     process.env.AI_API_KEY = argv.apikey;
 
-    const isOpenAI = supportedModels.openai.includes(argv.model);
-    const isGemini = supportedModels.gemini.includes(argv.model);
+    // Determine provider based on model
+    let provider = null;
+    for (const [providerKey, providerData] of Object.entries(supportedModels)) {
+      if (providerData.models.includes(argv.model)) {
+        provider = providerKey === 'gemini' ? 'Gemini' : 
+                  providerKey === 'openai' ? 'OpenAI' :
+                  providerKey === 'anthropic' ? 'Anthropic' :
+                  providerKey === 'mistral' ? 'Mistral' :
+                  providerKey === 'cohere' ? 'Cohere' :
+                  providerKey === 'huggingface' ? 'HuggingFace' :
+                  providerKey === 'perplexity' ? 'Perplexity' : null;
+        break;
+      }
+    }
 
-    if (isOpenAI) {
-      process.env.AI_PROVIDER = "OpenAI";
-      console.log(chalk.green(`Using OpenAI model: ${argv.model}`));
-    } else if (isGemini) {
-      process.env.AI_PROVIDER = "Gemini";
-      console.log(chalk.green(`Using Google Gemini model: ${argv.model}`));
+    if (provider) {
+      process.env.AI_PROVIDER = provider;
+      console.log(chalk.green(`Using ${provider} model: ${argv.model}`));
     } else {
       console.error(chalk.red("Invalid AI model specified. Exiting..."));
       process.exit(1);
@@ -177,9 +248,9 @@ async function main() {
       );
     } else {
       console.log(chalk.yellow("AI will not be used in this setup."));
-      process.env.AI_PROVIDER = null;
-      process.env.AI_MODEL = null;
-      process.env.AI_API_KEY = null;
+      process.env.AI_PROVIDER = "";
+      process.env.AI_MODEL = "";
+      process.env.AI_API_KEY = "";
     }
   }
 

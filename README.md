@@ -1,13 +1,13 @@
-<img src="assets/mysql-gui-logo.png" width=75 height=75 align=left />
+<img src="assets/dbfuse-ai-logo.png" width=75 height=75 align=left />
 
-# MySQL GUI
+# DBFuse
 
-[![npm version](https://img.shields.io/npm/v/mysql-gui.svg?color=success)](https://www.npmjs.com/package/mysql-gui)
-[![Known Vulnerabilities](https://snyk.io/test/github/kshashikumar/mysql-gui/badge.svg)](https://snyk.io/test/github/kshashikumar/mysql-gui)
-[![GitHub stars](https://img.shields.io/github/stars/kshashikumar/mysql-gui.svg?style=social)](https://github.com/kshashikumar/mysql-gui/stargazers)
+[![npm version](https://img.shields.io/npm/v/dbfuse-ai.svg?color=success)](https://www.npmjs.com/package/dbfuse-ai)
+[![Known Vulnerabilities](https://snyk.io/test/github/kshashikumar/dbfuse-ai/badge.svg)](https://snyk.io/test/github/kshashikumar/dbfuse-ai)
+[![GitHub stars](https://img.shields.io/github/stars/kshashikumar/dbfuse-ai.svg?style=social)](https://github.com/kshashikumar/dbfuse-ai/stargazers)
 
 
-**MySQL GUI** is a web-based Graphical User Interface designed to streamline database management and accelerate development workflows for MySQL, with planned future support for all major relational databases. This tool enhances user interaction with databases, allowing developers to manage data more efficiently.
+**DBFuse** is a web-based Graphical User Interface designed to streamline database management and accelerate development workflows for MySQL, with planned future support for all major relational databases. This tool enhances user interaction with databases, allowing developers to manage data more efficiently.
 
 ## Features
 
@@ -55,28 +55,28 @@
 
 ## Installation
 
-MYSQL GUI can be installed in multiple ways:
+DBFuse AI can be installed in multiple ways:
 
 ### From npm
 
 1. Install globally:
    ```bash
-   npm install -g mysql-gui
+   npm install -g dbfuse-ai
    ```
 2. Run the application:
    ```bash
-   mysql-gui
+   dbfuse-ai
    ```
 
 ### From npm
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/kshashikumar/mysql-gui.git
+   git clone https://github.com/kshashikumar/dbfuse-ai.git
    ```
 2. Navigate into the directory:
    ```bash
-   cd mysql-gui
+   cd dbfuse-ai
    ```
 3. Install dependencies:
    ```bash
@@ -89,19 +89,19 @@ MYSQL GUI can be installed in multiple ways:
 
 ### From Docker Hub
 
-You can run MYSQL GUI using Docker for easy setup and deployment. Follow the steps below to get started:
+You can run DBFuse AI using Docker for easy setup and deployment. Follow the steps below to get started:
 
 ### Running with Docker Compose
 
-To run MYSQL GUI with Docker Compose, use the following `docker-compose.yml` file:
+To run DBFuse AI with Docker Compose, use the following `docker-compose.yml` file:
 
 ```yaml
 version: "3"
 
 services:
-  mysql-gui:
-    container_name: "mysql-gui"
-    image: shashikumarkasturi/mysql-gui
+  dbfuse-ai:
+    container_name: "dbfuse-ai"
+    image: shashikumarkasturi/dbfuse-ai
     restart: always
     ports:
       - "5000:5000"
@@ -120,7 +120,7 @@ services:
 docker-compose up -d
 ```
 
-This command will start MYSQL GUI in detached mode, running in the background. 3. Once the container is running, open your browser and navigate to <http://localhost:5000> to use MYSQL GUI. 4. To stop the container, run:
+This command will start DBFuse AI in detached mode, running in the background. 3. Once the container is running, open your browser and navigate to <http://localhost:5000> to use DBFuse. 4. To stop the container, run:
 
 ```bash
 docker-compose down
@@ -128,7 +128,7 @@ docker-compose down
 
 ## AI Integration
 
-MYSQL GUI integrates OpenAI and Google Gemini to generate intelligent SQL queries with the following features:
+DBFuse AI integrates OpenAI and Google Gemini to generate intelligent SQL queries with the following features:
 
 ### Setting Up AI Integration
 
@@ -145,7 +145,7 @@ AI_MODEL=<MODEL_NAME>  # e.g., gpt-4 or gemini-1.5-flash
 AI_API_KEY=<YOUR_API_KEY>
 ```
 
-3. **Restart MYSQL GUI**
+3. **Restart DBFuse**
    Restart the application to activate AI integration.
 
 ### Using AI Prompt Querying
@@ -175,23 +175,17 @@ SELECT Department, AVG(Salary) AS AvgSalary FROM employeerecords GROUP BY Depart
 
 ## Usage
 
-By default, MYSQL GUI launches with the following configuration:
+By default, DBFuse AI launches with the following configuration:
 
 - **Database URL (-u)**: `mysql://root:root@localhost:3306`
 - **Port (-p)**: `5000`
 
 The app will be accessible at `http://localhost:5000`.
 
-To connect to a different MySQL server, specify the database URL as follows:
-
-```bash
-mysql-gui -u mysql://<username>:<password>@<host>:<dbport>
-```
-
 ### Options
 
 - **-u**: Specify the database URL to connect to a MySQL instance.
-- **-p**: Port number for MYSQL GUI to listen on
+- **-p**: Port number for DBFuse AI to listen on
 - **--model**: Specify the AI model to be used
   `(supporting model: gpt-4, gpt-3.5-turbo, text-davinci-003, gemini-1.5-flash, gemini-pro, gemini-lite)`
 - **--apikey**: Specify the API key for the chosen AI model.
@@ -221,13 +215,13 @@ To disable authentication, comment out or remove these variables from `.env` and
 
 ## Contributions
 
-MYSQL GUI is open for **contributions**! If you have ideas for features, improvements, or bug fixes, feel free to submit a pull request or open an issue.
+DBFuse AI is open for **contributions**! If you have ideas for features, improvements, or bug fixes, feel free to submit a pull request or open an issue.
 
 ## Demo
 
-![MYSQL-GUI](assets/mysql-gui-gif.gif)
-![MYSQL-GUI-AI](assets/mysql-gui-ai-gif.gif)
+![dbfuse-ai](assets/dbfuse-gif.gif)
+![dbfuse-ai](assets/dbfuse-ai-ai-gif.gif)
 
 ## License
 
-MYSQL GUI is distributed under the [MIT License](LICENSE). This license permits commercial use, modification, distribution, and private use, with the requirement to include the original copyright and license notice.
+DBFuse AI is distributed under the [MIT License](LICENSE). This license permits commercial use, modification, distribution, and private use, with the requirement to include the original copyright and license notice.

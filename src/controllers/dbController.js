@@ -1,228 +1,381 @@
-const DatabaseContext = require("../config/database-context");
-const dbContext = new DatabaseContext();
+// dbController.js (Updated for singleton pattern)
+const dbContext = require("../config/database-context"); // This is now a singleton instance
+
+// Enhanced response helper
+const sendResponse = (res, status, data, error = null) => {
+  if (!res.headersSent) {
+    res.status(status).json(error ? { error } : data);
+  }
+};
+
+// Enhanced error handler
+const handleError = (res, error, operation) => {
+  console.error(`Error in ${operation}:`, error);
+  
+  if (error.message.includes("syntax error") || 
+      error.code === "ER_PARSE_ERROR" ||
+      error.sqlState === "42000" ||
+      error.code === "42601" ||
+      error.code === "ORA-00900" ||
+      error.message.includes("SQLITE_ERROR")) {
+    return sendResponse(res, 400, null, "SQL syntax error. Please check your query.");
+  }
+  
+  if (error.code || error.sqlState || error.number) {
+    return sendResponse(res, 400, null, `Database error: ${error.message}`);
+  }
+  
+  sendResponse(res, 500, null, `Error ${operation}`);
+};
+
+// Get database type from headers
+const getDbType = (req) => {
+  return req.headers["x-db-type"] || req.headers["X-DB-Type"] || req.headers["X-Db-Type"];
+};
 
 const getDatabases = async (req, res) => {
-  const dbType = req.headers["x-db-type"] || req.headers["X-DB-Type"];
+  const dbType = getDbType(req);
   if (!dbType) {
-    return res.status(400).json({ error: "Database type (x-db-type) must be specified in headers" });
+    return sendResponse(res, 400, null, "Database type (x-db-type) must be specified in headers");
   }
 
   try {
+    // Set strategy if needed (won't recreate if same type)
     dbContext.setStrategy(dbType);
+    
     if (!(await dbContext.validateConnection())) {
       throw new Error("No active database connection. Call connect first.");
     }
+    
     const databaseStats = await dbContext.getDatabases();
-    if (!res.headersSent) {
-      res.status(200).json({ databases: databaseStats });
-    }
+    sendResponse(res, 200, { 
+      databases: databaseStats,
+      retrievedAt: new Date().toISOString()
+    });
   } catch (err) {
-    console.error("Error fetching database stats:", err);
-    if (!res.headersSent) {
-      res.status(500).json({ error: "Error fetching database stats" });
-    }
+    handleError(res, err, "fetching database stats");
   }
 };
 
 const getTables = async (req, res) => {
-  const dbType = req.headers["x-db-type"] || req.headers["X-DB-Type"] || req.headers["X-Db-Type"];
+  const dbType = getDbType(req);
   const dbName = req.params.dbName;
 
   if (!dbType) {
-    return res.status(400).json({ error: "Database type (x-db-type) must be specified in headers" });
+    return sendResponse(res, 400, null, "Database type (x-db-type) must be specified in headers");
   }
 
   try {
     dbContext.setStrategy(dbType);
+    
     if (!(await dbContext.validateConnection())) {
       throw new Error("No active database connection. Call connect first.");
     }
+    
     if (dbType !== "sqlite3") {
       await dbContext.switchDatabase(dbName);
-    } else if (dbName !== dbContext.strategy.databaseName && dbName !== ":memory:") {
+    } else if (dbName !== dbContext.getStrategy().databaseName && dbName !== ":memory:") {
       throw new Error("SQLite does not support switching databases");
     }
+    
     const tables = await dbContext.getTables(dbName);
-    if (!res.headersSent) {
-      res.status(200).json(tables);
-    }
+    sendResponse(res, 200, {
+      tables,
+      count: Array.isArray(tables) ? tables.length : 0,
+      database: dbName,
+      retrievedAt: new Date().toISOString()
+    });
   } catch (err) {
-    console.error("Error fetching tables:", err);
-    if (!res.headersSent) {
-      res.status(500).json({ error: "Error fetching tables" });
-    }
+    handleError(res, err, "fetching tables");
   }
 };
 
 const getTableInfo = async (req, res) => {
-  const dbType = req.headers["x-db-type"] || req.headers["X-DB-Type"];
+  const dbType = getDbType(req);
   const dbName = req.params.dbName;
   const table = req.params.table;
 
   if (!dbType) {
-    return res.status(400).json({ error: "Database type (x-db-type) must be specified in headers" });
+    return sendResponse(res, 400, null, "Database type (x-db-type) must be specified in headers");
   }
 
   try {
     dbContext.setStrategy(dbType);
+    
     if (!(await dbContext.validateConnection())) {
       throw new Error("No active database connection. Call connect first.");
     }
+    
     if (dbType !== "sqlite3") {
       await dbContext.switchDatabase(dbName);
-    } else if (dbName !== dbContext.strategy.databaseName && dbName !== ":memory:") {
+    } else if (dbName !== dbContext.getStrategy().databaseName && dbName !== ":memory:") {
       throw new Error("SQLite does not support switching databases");
     }
+    
     const tableInfo = await dbContext.getTableInfo(dbName, table);
-    if (!res.headersSent) {
-      res.status(200).json(tableInfo);
-    }
+    sendResponse(res, 200, {
+      ...tableInfo,
+      retrievedAt: new Date().toISOString()
+    });
   } catch (err) {
-    console.error("Error fetching table stats:", err);
-    if (!res.headersSent) {
-      res.status(500).json({ error: "Error fetching table stats" });
-    }
+    handleError(res, err, "fetching table stats");
   }
 };
 
 const getMultipleTablesInfo = async (req, res) => {
-  const dbType = req.headers["x-db-type"] || req.headers["X-DB-Type"];
+  const dbType = getDbType(req);
   const dbName = req.params.dbName;
   const { tables } = req.body;
 
   if (!dbType) {
-    return res.status(400).json({ error: "Database type (x-db-type) must be specified in headers" });
+    return sendResponse(res, 400, null, "Database type (x-db-type) must be specified in headers");
   }
   if (!dbName || !tables || !Array.isArray(tables) || tables.length === 0) {
-    return res.status(400).json({ error: "Database name and tables array are required." });
+    return sendResponse(res, 400, null, "Database name and tables array are required.");
   }
 
   try {
     dbContext.setStrategy(dbType);
+    
     if (!(await dbContext.validateConnection())) {
       throw new Error("No active database connection. Call connect first.");
     }
+    
     if (dbType !== "sqlite3") {
       await dbContext.switchDatabase(dbName);
-    } else if (dbName !== dbContext.strategy.databaseName && dbName !== ":memory:") {
+    } else if (dbName !== dbContext.getStrategy().databaseName && dbName !== ":memory:") {
       throw new Error("SQLite does not support switching databases");
     }
+    
     const tableDetails = await dbContext.getMultipleTablesInfo(dbName, tables);
-    if (!res.headersSent) {
-      res.status(200).json({ tables: tableDetails });
-    }
+    sendResponse(res, 200, { 
+      tables: tableDetails,
+      count: tableDetails.length,
+      database: dbName,
+      retrievedAt: new Date().toISOString()
+    });
   } catch (err) {
-    console.error("Error fetching multiple table stats:", err);
-    if (!res.headersSent) {
-      res.status(500).json({ error: "An error occurred while fetching table information." });
-    }
+    handleError(res, err, "fetching multiple table information");
   }
 };
 
 const executeQuery = async (req, res) => {
-  const dbType = req.headers["x-db-type"] || req.headers["X-DB-Type"];
+  const dbType = getDbType(req);
   const dbName = req.params.dbName;
   let { query, page = 1, pageSize = 10 } = req.body;
 
   if (!dbType) {
-    return res.status(400).json({ error: "Database type (x-db-type) must be specified in headers" });
+    return sendResponse(res, 400, null, "Database type (x-db-type) must be specified in headers");
   }
+
+  if (!query || typeof query !== 'string') {
+    return sendResponse(res, 400, null, "Query is required and must be a string");
+  }
+
+  // Validate and sanitize pagination
+  page = Math.max(1, parseInt(page) || 1);
+  pageSize = Math.min(Math.max(1, parseInt(pageSize) || 10), 1000);
 
   try {
     dbContext.setStrategy(dbType);
+    
     if (!(await dbContext.validateConnection())) {
       throw new Error("No active database connection. Call connect first.");
     }
 
     if (dbType !== "sqlite3") {
       await dbContext.switchDatabase(dbName);
-    } else if (dbName !== dbContext.strategy.databaseName && dbName !== ":memory:") {
+    } else if (dbName !== dbContext.getStrategy().databaseName && dbName !== ":memory:") {
       throw new Error("SQLite does not support switching databases");
     }
 
     const { rows, totalRows, messages } = await dbContext.executeQuery(query, { page, pageSize, dbName });
-    if (!res.headersSent) {
-      res.status(200).json({ rows, totalRows, messages });
-    }
+    
+    const response = { 
+      rows, 
+      totalRows, 
+      messages,
+      pagination: {
+        page,
+        pageSize,
+        totalPages: totalRows ? Math.ceil(totalRows / pageSize) : null,
+        hasMore: totalRows ? (page * pageSize) < totalRows : false
+      },
+      executedAt: new Date().toISOString()
+    };
+    
+    sendResponse(res, 200, response);
   } catch (err) {
-    console.error("Error executing query:", err);
-    if (
-      err.message.includes("SQL syntax error") ||
-      err.code === "ER_PARSE_ERROR" ||
-      err.sqlState === "42000" ||
-      err.code === "42601" || // PostgreSQL syntax error
-      err.code === "ORA-00900" || // Oracle syntax error
-      err.message.includes("SQLITE_ERROR")
-    ) {
-      if (!res.headersSent) {
-        res.status(400).json({ error: "SQL syntax error. Please check your query." });
-      }
-    } else if (err.code || err.sqlState || err.number) {
-      if (!res.headersSent) {
-        res.status(400).json({ error: `Database error: ${err.message}` });
-      }
-    } else {
-      if (!res.headersSent) {
-        res.status(500).json({ error: "Error executing query." });
-      }
-    }
+    handleError(res, err, "executing query");
   }
 };
 
 const connect = async (req, res) => {
   console.log("Connect endpoint hit");
   console.log("Headers:", req.headers);
-  const dbType = req.headers["x-db-type"] || req.headers["X-DB-Type"] || req.headers["X-Db-Type"];
+  
+  const dbType = getDbType(req);
   const { username, password, host, port, dbType: bodyDbType, database, socketPath } = req.body;
 
   if (!dbType) {
-    return res.status(400).json({ error: "Database type (x-db-type) must be specified in headers" });
+    return sendResponse(res, 400, null, "Database type (x-db-type) must be specified in headers");
   }
-  if (!username || !password || !host || !port || !bodyDbType) {
-    return res.status(400).json({ error: "Missing required connection parameters" });
+  
+  const requiredFields = ['username', 'password', 'host', 'port', 'dbType'];
+  const missingFields = requiredFields.filter(field => !req.body[field]);
+  
+  if (missingFields.length > 0) {
+    return sendResponse(res, 400, null, `Missing required fields: ${missingFields.join(', ')}`);
   }
+  
   if (dbType !== bodyDbType) {
-    return res.status(400).json({ error: "dbType in body must match x-db-type in headers" });
+    return sendResponse(res, 400, null, "dbType in body must match x-db-type in headers");
   }
 
   console.log(`> Attempting to connect to ${dbType} server @ ${host}:${port} with user ${username}`);
+  
   try {
-    dbContext.setStrategy(dbType);
-    console.log("Setting strategy to:", dbType);
     await dbContext.connect({ username, password, host, port, dbType, database, socketPath });
-    res.status(200).json({ message: `Connected to ${dbType} server @ ${host}:${port}` });
+    
+    sendResponse(res, 200, { 
+      message: `Connected to ${dbType} server @ ${host}:${port}`,
+      timestamp: new Date().toISOString(),
+      database: database || 'default'
+    });
   } catch (err) {
-    console.error("Error connecting to database:", err);
-    res.status(500).json({ error: "Error connecting to database" });
+    handleError(res, err, "connecting to database");
   }
 };
 
 const switchDatabase = async (req, res) => {
-  const dbType = req.headers["x-db-type"] || req.headers["X-DB-Type"];
+  const dbType = getDbType(req);
   const { dbName } = req.body;
 
   if (!dbType) {
-    return res.status(400).json({ error: "Database type (x-db-type) must be specified in headers" });
+    return sendResponse(res, 400, null, "Database type (x-db-type) must be specified in headers");
   }
   if (!dbName) {
-    return res.status(400).json({ error: "Database name is required" });
+    return sendResponse(res, 400, null, "Database name is required");
   }
 
   try {
     dbContext.setStrategy(dbType);
+    
     if (!(await dbContext.validateConnection())) {
       throw new Error("No active database connection. Call connect first.");
     }
+    
     if (dbType !== "sqlite3") {
       await dbContext.switchDatabase(dbName);
-    } else if (dbName !== dbContext.strategy.databaseName && dbName !== ":memory:") {
+    } else if (dbName !== dbContext.getStrategy().databaseName && dbName !== ":memory:") {
       throw new Error("SQLite does not support switching databases");
     }
-    res.status(200).json({ message: `Switched to database ${dbName}` });
+    
+    sendResponse(res, 200, { 
+      message: `Switched to database ${dbName}`,
+      database: dbName,
+      timestamp: new Date().toISOString()
+    });
   } catch (err) {
-    console.error("Error switching database:", err);
-    res.status(500).json({ error: "Error switching database" });
+    handleError(res, err, "switching database");
   }
+};
+
+const executeBatch = async (req, res) => {
+  const dbType = getDbType(req);
+  const dbName = req.params.dbName;
+  const { queries } = req.body;
+
+  if (!dbType) {
+    return sendResponse(res, 400, null, "Database type (x-db-type) must be specified in headers");
+  }
+  if (!queries || !Array.isArray(queries) || queries.length === 0) {
+    return sendResponse(res, 400, null, "Queries array is required and must not be empty");
+  }
+
+  try {
+    dbContext.setStrategy(dbType);
+    
+    if (!(await dbContext.validateConnection())) {
+      throw new Error("No active database connection. Call connect first.");
+    }
+
+    if (dbType !== "sqlite3") {
+      await dbContext.switchDatabase(dbName);
+    }
+
+    const results = [];
+    for (const query of queries) {
+      const result = await dbContext.executeQuery(query, { dbName });
+      results.push(result);
+    }
+
+    sendResponse(res, 200, {
+      results,
+      totalQueries: queries.length,
+      executedAt: new Date().toISOString(),
+      mode: 'batch'
+    });
+  } catch (err) {
+    handleError(res, err, "executing batch");
+  }
+};
+
+const getConnectionHealth = async (req, res) => {
+  try {
+    const isHealthy = await dbContext.validateConnection();
+    sendResponse(res, 200, {
+      status: isHealthy ? 'healthy' : 'unhealthy',
+      connected: dbContext.isConnectionActive(),
+      dbType: dbContext.getCurrentDbType(),
+      timestamp: new Date().toISOString()
+    });
+  } catch (err) {
+    sendResponse(res, 200, {
+      status: 'unhealthy',
+      connected: false,
+      error: err.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+};
+
+const analyzeQuery = async (req, res) => {
+  const { query } = req.body;
+
+  if (!query) {
+    return sendResponse(res, 400, null, "Query is required");
+  }
+
+  try {
+    const trimmedQuery = query.trim().toUpperCase();
+    const isSelect = trimmedQuery.startsWith('SELECT');
+    const isReadOnly = /^(SELECT|SHOW|DESCRIBE|EXPLAIN)\s/i.test(trimmedQuery);
+    
+    const analysis = {
+      type: isSelect ? 'SELECT' : 'OTHER',
+      isReadOnly,
+      requiresTransaction: !isReadOnly,
+      supportsPagination: isSelect,
+      queryLength: query.length
+    };
+
+    sendResponse(res, 200, {
+      query: query.substring(0, 100) + (query.length > 100 ? '...' : ''),
+      analysis,
+      analyzedAt: new Date().toISOString()
+    });
+  } catch (err) {
+    handleError(res, err, "analyzing query");
+  }
+};
+
+const getViews = async (req, res) => {
+  sendResponse(res, 501, null, "Views endpoint not implemented yet");
+};
+
+const getProcedures = async (req, res) => {
+  sendResponse(res, 501, null, "Procedures endpoint not implemented yet");
 };
 
 module.exports = {
@@ -232,5 +385,10 @@ module.exports = {
   executeQuery,
   getMultipleTablesInfo,
   connect,
-  switchDatabase
+  switchDatabase,
+  executeBatch,
+  getConnectionHealth,
+  analyzeQuery,
+  getViews,
+  getProcedures
 };

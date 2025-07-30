@@ -1,8 +1,8 @@
 version: '3'
 
 services:
-  mysql-gui:
-    container_name: "mysql-gui"
+  dbfuse-ai:
+    container_name: "dbfuse-ai"
     build: 
       context: .
       dockerfile: Dockerfile

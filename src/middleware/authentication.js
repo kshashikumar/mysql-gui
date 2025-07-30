@@ -11,7 +11,7 @@ function authentication(req, res, next) {
     return next(); // Skip auth for OPTIONS
   }
 
-  if (!process.env.MYSQLGUI_USERNAME || !process.env.MYSQLGUI_PASSWORD) {
+  if (!process.env.DBFUSE_USERNAME || !process.env.DBFUSE_PASSWORD) {
     return next();
   }
 
@@ -27,7 +27,7 @@ function authentication(req, res, next) {
   }
 
   const [username, password] = authController._decodeCredentials(authHeader);
-  if (username === process.env.MYSQLGUI_USERNAME && password === process.env.MYSQLGUI_PASSWORD) {
+  if (username === process.env.DBFUSE_USERNAME && password === process.env.DBFUSE_PASSWORD) {
     console.log("User is authenticated");
     return next();
   } else {

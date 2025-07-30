@@ -8,6 +8,7 @@ const gZipper = require("connect-gzip-static");
 const bodyParser = require("body-parser");
 const authRouter = require("./routes/authRoutes");
 const connectionRouter = require("./routes/connectionRoutes");
+const configRouter = require("./routes/configRoutes");
 
 const app = express();
 
@@ -18,26 +19,30 @@ app.use(cors({
     credentials: true
 }));
 
-
-app.use(authMiddleware.authentication);
-app.use(express.static("public/mysql-gui-client"));
-app.use(gZipper(__dirname + "/public/mysql-gui-client"));
+app.use(express.static("public/dbfuse-ai-client"));
+app.use(gZipper(__dirname + "/public/dbfuse-ai-client"));
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json({ limit: process.env.BODY_SIZE || "50mb" }));
+app.get("/", (req, res) =>
+  res.sendFile(__dirname + "/public/dbfuse-ai-client/index.html")
+);
+
+
+
+app.use(authMiddleware.authentication);
+
 
 app.use("/api/auth", authRouter);
 app.use("/api/sql", dbRouter);
 app.use("/api/connections", connectionRouter);
-app.use("/api/sql/openai", langchainRouter);
+app.use("/api/openai", langchainRouter);
+app.use("/api/config", configRouter);
 
-app.get("/", (req, res) =>
-  res.sendFile(__dirname + "/public/mysql-gui-client/index.html")
-);
 
 
 const port = process.env.PORT || 5000;
 app.listen(port, () => {
-  console.log(`> Access MySQL GUI at http://localhost:${port}`);
+  console.log(`> Access DBFuse AI at http://localhost:${port}`);
 });
 
 // error handler

@@ -1,6 +1,5 @@
-
+// config/database-context.js (Updated for singleton pattern)
 const fs = require("fs").promises;
-exports.fs = fs;
 const path = require("path");
 const MySQLStrategy = require("./db_strategies/mysql-strategy");
 const PostgreSQLStrategy = require("./db_strategies/postgresql-strategy");
@@ -11,49 +10,100 @@ const OracleStrategy = require("./db_strategies/oracle-strategy");
 class DatabaseContext {
   constructor() {
     this.strategy = null;
+    this.currentDbType = null;
+    this.isConnected = false;
     this.strategies = {
-      mysql2: new MySQLStrategy(),
-      pg: new PostgreSQLStrategy(),
-      sqlite3: new SQLiteStrategy(),
-      mssql: new MSSQLStrategy(),
-      oracledb: new OracleStrategy(),
+      mysql2: MySQLStrategy,
+      pg: PostgreSQLStrategy,
+      sqlite3: SQLiteStrategy,
+      mssql: MSSQLStrategy,
+      oracledb: OracleStrategy,
     };
   }
 
   setStrategy(dbType) {
-    if (!this.strategies[dbType]) {
-      throw new Error(`Unsupported database type: ${dbType}. Supported types: ${Object.keys(this.strategies).join(", ")}`);
+    // Only create new strategy if dbType changed or no strategy exists
+    if (!this.strategy || this.currentDbType !== dbType) {
+      if (!this.strategies[dbType]) {
+        throw new Error(`Unsupported database type: ${dbType}. Supported types: ${Object.keys(this.strategies).join(", ")}`);
+      }
+      
+      // Disconnect previous strategy if exists
+      if (this.strategy && this.isConnected) {
+        this.strategy.disconnect();
+      }
+      
+      this.strategy = new this.strategies[dbType]();
+      this.currentDbType = dbType;
+      this.isConnected = false;
     }
-    this.strategy = this.strategies[dbType];
   }
 
   async connect(config) {
-    if (!this.strategy) throw new Error("Strategy not set. Call setStrategy first.");
-    await this.strategy.connect(config);
+    this.setStrategy(config.dbType);
+    
+    if (!this.isConnected) {
+      await this.strategy.connect(config);
+      this.isConnected = true;
+    }
+    
+    return this.strategy;
   }
 
   async switchDatabase(dbName) {
-    if (!this.strategy) throw new Error("Strategy not set. Call setStrategy first.");
+    if (!this.strategy || !this.isConnected) {
+      throw new Error("No active database connection. Call connect first.");
+    }
     await this.strategy.switchDatabase(dbName);
   }
 
   async executeQuery(query, options = {}) {
-    if (!this.strategy) throw new Error("Strategy not set. Call setStrategy first.");
+    if (!this.strategy || !this.isConnected) {
+      throw new Error("No active database connection. Call connect first.");
+    }
     return await this.strategy.executeQuery(query, options);
   }
 
   async disconnect() {
-    if (this.strategy) {
+    if (this.strategy && this.isConnected) {
       await this.strategy.disconnect();
-      this.strategy = null;
+      this.isConnected = false;
     }
   }
 
   async validateConnection() {
-    if (!this.strategy) return false;
-    return await this.strategy.validateConnection();
+    if (!this.strategy || !this.isConnected) {
+      return false;
+    }
+    
+    try {
+      const isValid = await this.strategy.validateConnection();
+      if (!isValid) {
+        this.isConnected = false;
+      }
+      return isValid;
+    } catch (error) {
+      this.isConnected = false;
+      return false;
+    }
   }
 
+  getStrategy() {
+    if (!this.strategy || !this.isConnected) {
+      throw new Error("No active database connection. Call connect first.");
+    }
+    return this.strategy;
+  }
+
+  isConnectionActive() {
+    return this.strategy && this.isConnected;
+  }
+
+  getCurrentDbType() {
+    return this.currentDbType;
+  }
+
+  // Existing methods that delegate to strategy
   async getConnections() {
     try {
       const filePath = path.join(__dirname, "dbConnections.json");
@@ -94,24 +144,21 @@ class DatabaseContext {
   }
 
   async getDatabases() {
-    if (!this.strategy) throw new Error("Strategy not set. Call setStrategy first.");
-    return await this.strategy.getDatabases();
+    return await this.getStrategy().getDatabases();
   }
 
   async getTables(dbName) {
-    if (!this.strategy) throw new Error("Strategy not set. Call setStrategy first.");
-    return await this.strategy.getTables(dbName);
+    return await this.getStrategy().getTables(dbName);
   }
 
   async getTableInfo(dbName, tableName) {
-    if (!this.strategy) throw new Error("Strategy not set. Call setStrategy first.");
-    return await this.strategy.getTableInfo(dbName, tableName);
+    return await this.getStrategy().getTableInfo(dbName, tableName);
   }
 
   async getMultipleTablesInfo(dbName, tableNames) {
-    if (!this.strategy) throw new Error("Strategy not set. Call setStrategy first.");
-    return await this.strategy.getMultipleTablesInfo(dbName, tableNames);
+    return await this.getStrategy().getMultipleTablesInfo(dbName, tableNames);
   }
 }
 
-module.exports = DatabaseContext;
+// Export singleton instance
+module.exports = new DatabaseContext();

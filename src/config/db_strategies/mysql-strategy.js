@@ -1,4 +1,4 @@
-// mysql-strategy.js
+// mysql-strategy.js (Enhanced with all optional parameters)
 const mysql = require("mysql2/promise");
 const DatabaseStrategy = require("../database-strategy");
 
@@ -9,27 +9,85 @@ class MySQLStrategy extends DatabaseStrategy {
   }
 
   async connect(config) {
-    const { host, port, username, password, database, socketPath } = config;
+    const { 
+      host, 
+      port, 
+      username, 
+      password, 
+      database, 
+      socketPath,
+      ssl,
+      connectionTimeout,
+      poolSize,
+      charset,
+      timezone,
+      acquireTimeout,
+      waitForConnections,
+      queueLimit,
+      reconnect,
+      idleTimeout
+    } = config;
+
     console.log(
-      `> Connecting to MySQL server @ ${host || "localhost"}:${port || "default port"} with user ${username}${
+      `> Connecting to MySQL server @ ${host || "localhost"}:${port || 3306} with user ${username}${
         database ? ` and database ${database}` : ""
-      }${socketPath ? ` using socket ${socketPath}` : ""}`
+      }${socketPath ? ` using socket ${socketPath}` : ""}${ssl ? " with SSL" : ""}`
     );
 
-    this.pool = await mysql.createPool({
+    // Build connection configuration with all optional parameters
+    const connectionConfig = {
       host: host || "localhost",
-      port: host === "localhost" && !port ? undefined : port || 3306,
+      port: host === "localhost" && !port ? undefined : parseInt(port) || 3306,
       user: username,
       password,
       database: database || undefined,
       socketPath: host === "localhost" && socketPath ? socketPath : undefined,
-      ssl: host !== "localhost" ? { rejectUnauthorized: false } : undefined,
-      //authPlugins: { caching_sha2_password: mysql.authPlugins.caching_sha2_password },
-      connectionLimit: 10,
-      acquireTimeout: 60000,
-      waitForConnections: true,
+      
+      // SSL Configuration
+      ssl: ssl ? (typeof ssl === 'object' ? ssl : { rejectUnauthorized: false }) : 
+           (host !== "localhost" ? { rejectUnauthorized: false } : undefined),
+      
+      // Pool Configuration
+      connectionLimit: parseInt(poolSize) || 10,
+      acquireTimeout: parseInt(acquireTimeout) || parseInt(connectionTimeout) || 60000,
+      waitForConnections: waitForConnections !== undefined ? waitForConnections : true,
+      queueLimit: parseInt(queueLimit) || 0,
+      
+      // Connection Options
+      charset: charset || 'UTF8_GENERAL_CI',
+      timezone: timezone || 'local',
+      reconnect: reconnect !== undefined ? reconnect : true,
+      
+      // Timeouts
+      connectTimeout: parseInt(connectionTimeout) || 60000,
+      timeout: parseInt(connectionTimeout) || 60000,
+      idleTimeout: parseInt(idleTimeout) || 30000,
+      
+      // Additional MySQL specific options
+      multipleStatements: true,
+      dateStrings: false,
+      debug: false,
+      trace: true,
+      stringifyObjects: false,
+      supportBigNumbers: true,
+      bigNumberStrings: false,
+      
+      // Performance options
+      typeCast: true,
+      nestTables: false,
+      rowsAsArray: false
+    };
+
+    // Remove undefined values to avoid mysql2 warnings
+    Object.keys(connectionConfig).forEach(key => {
+      if (connectionConfig[key] === undefined) {
+        delete connectionConfig[key];
+      }
     });
 
+    this.pool = await mysql.createPool(connectionConfig);
+
+    // Test connection
     await this.pool.query("SELECT 1");
     console.log("> Successfully connected to MySQL server");
   }
@@ -64,8 +122,7 @@ class MySQLStrategy extends DatabaseStrategy {
       const isAlterCommand = /^ALTER\s/i.test(singleQuery);
       const isGrantCommand = /^GRANT\s/i.test(singleQuery);
       const isRevokeCommand = /^REVOKE\s/i.test(singleQuery);
-      const isTransactionCommand =
-        /^BEGIN\s|^START\s|^COMMIT\s|^ROLLBACK\s/i.test(singleQuery);
+      const isTransactionCommand = /^BEGIN\s|^START\s|^COMMIT\s|^ROLLBACK\s/i.test(singleQuery);
 
       if (isSelectQuery) {
         let paginatedQuery = singleQuery;
@@ -92,10 +149,15 @@ class MySQLStrategy extends DatabaseStrategy {
           query: singleQuery,
           message: "Command executed successfully",
           affectedRows: response.affectedRows || 0,
+          insertId: response.insertId || null,
+          warningCount: response.warningCount || 0
         });
       } else if (isGrantCommand || isRevokeCommand || isTransactionCommand) {
         await this.pool.query(singleQuery);
-        messages.push({ query: singleQuery, message: `${isGrantCommand || isRevokeCommand ? "Permission" : "Transaction"} command executed successfully` });
+        messages.push({ 
+          query: singleQuery, 
+          message: `${isGrantCommand || isRevokeCommand ? "Permission" : "Transaction"} command executed successfully` 
+        });
       } else {
         messages.push({ query: singleQuery, message: "Command not recognized or unsupported" });
       }
@@ -120,6 +182,31 @@ class MySQLStrategy extends DatabaseStrategy {
     } catch (err) {
       console.error("MySQL connection validation failed:", err);
       return false;
+    }
+  }
+
+  // Get connection pool statistics
+  async getConnectionStats() {
+    if (!this.pool) return null;
+    
+    try {
+      const [stats] = await this.pool.query(`
+        SHOW STATUS WHERE Variable_name IN (
+          'Connections',
+          'Max_used_connections',
+          'Threads_connected',
+          'Threads_running',
+          'Uptime'
+        )
+      `);
+      
+      return stats.reduce((acc, stat) => {
+        acc[stat.Variable_name] = stat.Value;
+        return acc;
+      }, {});
+    } catch (err) {
+      console.error("Error getting connection stats:", err);
+      return null;
     }
   }
 
@@ -179,44 +266,122 @@ class MySQLStrategy extends DatabaseStrategy {
   }
 
   async getTableInfo(dbName, tableName) {
-    if (!this.pool) throw new Error("MySQL connection not initialized");
-    await this.switchDatabase(dbName);
-    const [columns] = await this.pool.query(
-      `SELECT COLUMN_NAME AS column_name 
-       FROM INFORMATION_SCHEMA.COLUMNS 
-       WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?`,
-      [dbName, tableName]
-    );
-    const [indexes] = await this.pool.query(
-      `SELECT INDEX_NAME AS index_name 
-       FROM INFORMATION_SCHEMA.STATISTICS 
-       WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?`,
-      [dbName, tableName]
-    );
-    const [foreignKeys] = await this.pool.query(
-      `SELECT kcu.CONSTRAINT_NAME AS fk_name 
-       FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE kcu
-       JOIN INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS rc 
-       ON kcu.CONSTRAINT_NAME = rc.CONSTRAINT_NAME
-       WHERE kcu.TABLE_SCHEMA = ? AND kcu.TABLE_NAME = ? AND kcu.REFERENCED_TABLE_NAME IS NOT NULL`,
-      [dbName, tableName]
-    );
-    const [triggers] = await this.pool.query(
-      `SELECT TRIGGER_NAME AS trigger_name 
+  if (!this.pool) throw new Error("MySQL connection not initialized");
+  
+  // Switch to database first
+  await this.pool.query(`USE \`${dbName}\``);
+  
+  // Get columns
+  const [columns] = await this.pool.query(
+    `SELECT COLUMN_NAME as column_name, 
+            DATA_TYPE as data_type, 
+            IS_NULLABLE as is_nullable, 
+            COLUMN_DEFAULT as column_default,
+            EXTRA as extra,
+            COLUMN_KEY as column_key
+     FROM INFORMATION_SCHEMA.COLUMNS 
+     WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? 
+     ORDER BY ORDINAL_POSITION`,
+    [dbName, tableName]
+  );
+  
+  // Get indexes
+  const [indexes] = await this.pool.query(
+    `SELECT INDEX_NAME as index_name, 
+            NON_UNIQUE as non_unique, 
+            COLUMN_NAME as column_name,
+            INDEX_TYPE as index_type
+     FROM INFORMATION_SCHEMA.STATISTICS 
+     WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? 
+     ORDER BY INDEX_NAME, SEQ_IN_INDEX`,
+    [dbName, tableName]
+  );
+  
+  // Get foreign keys
+  const [foreignKeys] = await this.pool.query(
+    `SELECT CONSTRAINT_NAME as fk_name,
+            COLUMN_NAME as column_name,
+            REFERENCED_TABLE_SCHEMA as referenced_schema,
+            REFERENCED_TABLE_NAME as referenced_table,
+            REFERENCED_COLUMN_NAME as referenced_column
+     FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE 
+     WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? 
+     AND REFERENCED_TABLE_NAME IS NOT NULL`,
+    [dbName, tableName]
+  );
+  
+  // Get triggers - Use version-compatible query
+  let triggers = [];
+  try {
+    // Try the new format first (MySQL 5.7+)
+    const [triggersResult] = await this.pool.query(
+      `SELECT TRIGGER_NAME AS trigger_name, 
+              EVENT_MANIPULATION as event_manipulation, 
+              ACTION_TIMING as action_timing,
+              ACTION_STATEMENT as action_statement
        FROM INFORMATION_SCHEMA.TRIGGERS 
        WHERE EVENT_OBJECT_SCHEMA = ? AND EVENT_OBJECT_TABLE = ?`,
       [dbName, tableName]
     );
-
-    return {
-      db_name: dbName,
-      table_name: tableName,
-      columns: columns.map((col) => ({ column_name: col.column_name })),
-      indexes: indexes.map((idx) => ({ index_name: idx.index_name })),
-      foreign_keys: foreignKeys.map((fk) => ({ fk_name: fk.fk_name })),
-      triggers: triggers.map((trig) => ({ trigger_name: trig.trigger_name })),
-    };
+    triggers = triggersResult;
+  } catch (err) {
+    if (err.code === 'ER_BAD_FIELD_ERROR') {
+      // Fallback for older MySQL versions - try without TIMING/ACTION_TIMING
+      try {
+        const [triggersResult] = await this.pool.query(
+          `SELECT TRIGGER_NAME AS trigger_name, 
+                  EVENT_MANIPULATION as event_manipulation,
+                  ACTION_STATEMENT as action_statement
+           FROM INFORMATION_SCHEMA.TRIGGERS 
+           WHERE EVENT_OBJECT_SCHEMA = ? AND EVENT_OBJECT_TABLE = ?`,
+          [dbName, tableName]
+        );
+        triggers = triggersResult.map(trigger => ({
+          ...trigger,
+          action_timing: 'UNKNOWN' // Default value for missing column
+        }));
+      } catch (fallbackErr) {
+        // If triggers table doesn't exist or has other issues, return empty array
+        console.warn(`Could not fetch triggers for ${dbName}.${tableName}:`, fallbackErr.message);
+        triggers = [];
+      }
+    } else {
+      throw err; // Re-throw if it's a different error
+    }
   }
+
+  return {
+    db_name: dbName,
+    table_name: tableName,
+    columns: columns.map((col) => ({
+      column_name: col.column_name,
+      data_type: col.data_type,
+      is_nullable: col.is_nullable === 'YES',
+      default_value: col.column_default,
+      extra: col.extra,
+      is_primary_key: col.column_key === 'PRI'
+    })),
+    indexes: indexes.map((idx) => ({
+      index_name: idx.index_name,
+      is_unique: idx.non_unique === 0,
+      column_name: idx.column_name,
+      index_type: idx.index_type
+    })),
+    foreign_keys: foreignKeys.map((fk) => ({
+      fk_name: fk.fk_name,
+      column_name: fk.column_name,
+      referenced_schema: fk.referenced_schema,
+      referenced_table: fk.referenced_table,
+      referenced_column: fk.referenced_column
+    })),
+    triggers: triggers.map((trig) => ({
+      trigger_name: trig.trigger_name,
+      event_manipulation: trig.event_manipulation,
+      action_timing: trig.action_timing || 'UNKNOWN',
+      action_statement: trig.action_statement
+    })),
+  };
+}
 
   async getMultipleTablesInfo(dbName, tableNames) {
     if (!this.pool) throw new Error("MySQL connection not initialized");
@@ -224,40 +389,8 @@ class MySQLStrategy extends DatabaseStrategy {
     const tableDetails = [];
 
     for (const table of tableNames) {
-      const [columns] = await this.pool.query(
-        `SELECT COLUMN_NAME AS column_name 
-         FROM INFORMATION_SCHEMA.COLUMNS 
-         WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?`,
-        [dbName, table]
-      );
-      const [indexes] = await this.pool.query(
-        `SELECT INDEX_NAME AS index_name 
-         FROM INFORMATION_SCHEMA.STATISTICS 
-         WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?`,
-        [dbName, table]
-      );
-      const [foreignKeys] = await this.pool.query(
-        `SELECT kcu.CONSTRAINT_NAME AS fk_name 
-         FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE kcu
-         JOIN INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS rc 
-         ON kcu.CONSTRAINT_NAME = rc.CONSTRAINT_NAME
-         WHERE kcu.TABLE_SCHEMA = ? AND kcu.TABLE_NAME = ? AND kcu.REFERENCED_TABLE_NAME IS NOT NULL`,
-        [dbName, table]
-      );
-      const [triggers] = await this.pool.query(
-        `SELECT TRIGGER_NAME AS trigger_name 
-         FROM INFORMATION_SCHEMA.TRIGGERS 
-         WHERE EVENT_OBJECT_SCHEMA = ? AND EVENT_OBJECT_TABLE = ?`,
-        [dbName, table]
-      );
-
-      tableDetails.push({
-        table_name: table,
-        columns: columns.map((col) => ({ column_name: col.column_name })),
-        indexes: indexes.map((idx) => ({ index_name: idx.index_name })),
-        foreign_keys: foreignKeys.map((fk) => ({ fk_name: fk.fk_name })),
-        triggers: triggers.map((trig) => ({ trigger_name: trig.trigger_name })),
-      });
+      const tableInfo = await this.getTableInfo(dbName, table);
+      tableDetails.push(tableInfo);
     }
 
     return tableDetails;

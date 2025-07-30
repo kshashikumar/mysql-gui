@@ -37,10 +37,10 @@ jobs:
 
       - name: Build Docker image
         run: |
-          docker build -t ${{ secrets.DOCKER_USERNAME }}/mysql-gui:${{ github.ref_name }} .
-          docker tag ${{ secrets.DOCKER_USERNAME }}/mysql-gui:${{ github.ref_name }} ${{ secrets.DOCKER_USERNAME }}/mysql-gui:latest
+          docker build -t ${{ secrets.DOCKER_USERNAME }}/dbfuse-ai:${{ github.ref_name }} .
+          docker tag ${{ secrets.DOCKER_USERNAME }}/dbfuse-ai:${{ github.ref_name }} ${{ secrets.DOCKER_USERNAME }}/dbfuse-ai:latest
 
       - name: Push Docker image
         run: |
-          docker push ${{ secrets.DOCKER_USERNAME }}/mysql-gui:${{ github.ref_name }}
-          docker push ${{ secrets.DOCKER_USERNAME }}/mysql-gui:latest
+          docker push ${{ secrets.DOCKER_USERNAME }}/dbfuse-ai:${{ github.ref_name }}
+          docker push ${{ secrets.DOCKER_USERNAME }}/dbfuse-ai:latest

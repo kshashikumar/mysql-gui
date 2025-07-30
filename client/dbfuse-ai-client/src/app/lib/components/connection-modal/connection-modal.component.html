@@ -1,0 +1,273 @@
+<div *ngIf="isOpen" class="fixed inset-0 z-[10004] overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+  <!-- Background overlay -->
+  <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+    <div 
+      class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity z-[10004]" 
+      aria-hidden="true"
+      (click)="cancel()"
+    ></div>
+
+    <!-- This element is to trick the browser into centering the modal contents. -->
+    <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+
+    <!-- Modal panel -->
+    <div class="relative inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl sm:w-full sm:p-6 z-[10005]">
+      <div class="absolute top-0 right-0 pt-4 pr-4">
+        <button
+          type="button"
+          (click)="cancel()"
+          class="bg-white dark:bg-gray-800 rounded-md text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+        >
+          <span class="sr-only">Close</span>
+          <span class="icon-[mdi--close] h-6 w-6"></span>
+        </button>
+      </div>
+
+      <div class="sm:flex sm:items-start">
+        <div class="mt-3 text-center sm:mt-0 sm:text-left w-full">
+          <h3 class="text-lg leading-6 font-medium text-gray-900 dark:text-white mb-6" id="modal-title">
+            {{ connection.id ? 'Edit Connection' : 'New Connection' }}
+          </h3>
+
+          <!-- Validation Errors -->
+          <div *ngIf="!validationResult.isValid && validationResult.errors.length > 0" 
+               class="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
+            <div class="flex">
+              <span class="icon-[mdi--alert] h-5 w-5 text-red-400 mr-2"></span>
+              <div class="text-sm text-red-800 dark:text-red-400">
+                <ul class="list-disc list-inside">
+                  <li *ngFor="let error of validationResult.errors">{{ error }}</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <!-- Validation Warnings -->
+          <div *ngIf="validationResult.warnings && validationResult.warnings.length > 0" 
+               class="mb-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
+            <div class="flex">
+              <span class="icon-[mdi--alert-outline] h-5 w-5 text-yellow-400 mr-2"></span>
+              <div class="text-sm text-yellow-800 dark:text-yellow-400">
+                <ul class="list-disc list-inside">
+                  <li *ngFor="let warning of validationResult.warnings">{{ warning }}</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <form [formGroup]="connectionForm" class="space-y-6">
+            <!-- Basic Configuration -->
+            <div class="space-y-4">
+              <h4 class="text-md font-medium text-gray-900 dark:text-white border-b border-gray-200 dark:border-gray-700 pb-2">
+                Basic Configuration
+              </h4>
+              
+              <!-- Database Type -->
+              <div>
+                <label for="dbType" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Database Type *
+                </label>
+                <select
+                  id="dbType"
+                  formControlName="dbType"
+                  class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
+                >
+                  <option *ngFor="let type of dbTypes" [value]="type">{{ getDbTypeLabel(type) }}</option>
+                </select>
+              </div>
+
+              <!-- Dynamic Basic Fields -->
+              <div *ngFor="let field of getFieldsByGroup('basic')" class="space-y-2">
+                <div *ngIf="shouldShowField(field.name, 'basic')">
+                  <label [for]="field.name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    {{ field.label }}
+                    <span *ngIf="field.required" class="text-red-500">*</span>
+                  </label>
+                  
+                  <!-- Text/Number Input -->
+                  <input
+                    *ngIf="field.type === 'text' || field.type === 'number'"
+                    [type]="field.name === 'password' && !showPassword ? 'password' : field.type"
+                    [id]="field.name"
+                    [formControlName]="field.name"
+                    [placeholder]="field.placeholder || ''"
+                    class="mt-1 focus:ring-blue-500 focus:border-blue-500 block w-full shadow-sm sm:text-sm border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-md"
+                    [class.pr-10]="field.name === 'password'"
+                  />
+                  
+                  <!-- Password Toggle Button -->
+                  <div *ngIf="field.name === 'password'" class="relative">
+                    <button
+                      type="button"
+                      (click)="togglePasswordVisibility()"
+                      class="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                    >
+                      <span *ngIf="!showPassword" class="icon-[mdi--eye] h-5 w-5"></span>
+                      <span *ngIf="showPassword" class="icon-[mdi--eye-off] h-5 w-5"></span>
+                    </button>
+                  </div>
+                  
+                  <!-- Checkbox -->
+                  <div *ngIf="field.type === 'checkbox'" class="flex items-center">
+                    <input
+                      type="checkbox"
+                      [id]="field.name"
+                      [formControlName]="field.name"
+                      class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded"
+                    />
+                    <label [for]="field.name" class="ml-2 block text-sm text-gray-900 dark:text-white">
+                      {{ field.label }}
+                    </label>
+                  </div>
+                  
+                  <!-- Select -->
+                  <select
+                    *ngIf="field.type === 'select'"
+                    [id]="field.name"
+                    [formControlName]="field.name"
+                    class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
+                  >
+                    <option value="">Select {{ field.label }}</option>
+                    <option *ngFor="let option of getSelectOptions(field.name)" [value]="option">{{ option }}</option>
+                  </select>
+                  
+                  <!-- Field Error -->
+                  <div *ngIf="getFieldError(field.name)" class="text-red-500 text-xs mt-1">
+                    {{ getFieldError(field.name) }}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Security Configuration -->
+            <div *ngIf="getFieldsByGroup('security').length > 0" class="space-y-4">
+              <h4 class="text-md font-medium text-gray-900 dark:text-white border-b border-gray-200 dark:border-gray-700 pb-2">
+                Security Settings
+              </h4>
+              
+              <div *ngFor="let field of getFieldsByGroup('security')" class="space-y-2">
+                <div *ngIf="shouldShowField(field.name, 'security')">
+                  <!-- Similar field rendering logic as basic fields -->
+                  <label [for]="field.name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    {{ field.label }}
+                  </label>
+                  
+                  <div [ngSwitch]="field.type">
+                    <input
+                      *ngSwitchCase="'text'"
+                      type="text"
+                      [id]="field.name"
+                      [formControlName]="field.name"
+                      class="mt-1 focus:ring-blue-500 focus:border-blue-500 block w-full shadow-sm sm:text-sm border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-md"
+                    />
+                    
+                    <div *ngSwitchCase="'checkbox'" class="flex items-center">
+                      <input
+                        type="checkbox"
+                        [id]="field.name"
+                        [formControlName]="field.name"
+                        class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded"
+                      />
+                      <label [for]="field.name" class="ml-2 block text-sm text-gray-900 dark:text-white">
+                        {{ field.label }}
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Advanced Configuration -->
+            <div *ngIf="getFieldsByGroup('advanced').length > 0" class="space-y-4">
+              <div class="flex items-center justify-between">
+                <h4 class="text-md font-medium text-gray-900 dark:text-white">
+                  Advanced Settings
+                </h4>
+                <button
+                  type="button"
+                  (click)="toggleAdvanced()"
+                  class="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200 focus:outline-none"
+                >
+                  {{ showAdvanced ? 'Hide' : 'Show' }} Advanced
+                </button>
+              </div>
+              
+              <div *ngIf="showAdvanced" class="space-y-4 pl-4 border-l-2 border-gray-200 dark:border-gray-700">
+                <div *ngFor="let field of getFieldsByGroup('advanced')" class="space-y-2">
+                  <div *ngIf="shouldShowField(field.name, 'advanced')">
+                    <label [for]="field.name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      {{ field.label }}
+                    </label>
+                    
+                    <div [ngSwitch]="field.type">
+                      <input
+                        *ngSwitchCase="'text'"
+                        type="text"
+                        [id]="field.name"
+                        [formControlName]="field.name"
+                        class="mt-1 focus:ring-blue-500 focus:border-blue-500 block w-full shadow-sm sm:text-sm border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-md"
+                      />
+                      
+                      <input
+                        *ngSwitchCase="'number'"
+                        type="number"
+                        [id]="field.name"
+                        [formControlName]="field.name"
+                        class="mt-1 focus:ring-blue-500 focus:border-blue-500 block w-full shadow-sm sm:text-sm border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-md"
+                      />
+                      
+                      <div *ngSwitchCase="'checkbox'" class="flex items-center">
+                        <input
+                          type="checkbox"
+                          [id]="field.name"
+                          [formControlName]="field.name"
+                          class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded"
+                        />
+                        <label [for]="field.name" class="ml-2 block text-sm text-gray-900 dark:text-white">
+                          {{ field.label }}
+                        </label>
+                      </div>
+                      
+                      <select
+                        *ngSwitchCase="'select'"
+                        [id]="field.name"
+                        [formControlName]="field.name"
+                        class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
+                      >
+                        <option value="">Select {{ field.label }}</option>
+                        <option *ngFor="let option of getSelectOptions(field.name)" [value]="option">{{ option }}</option>
+                      </select>
+                    </div>
+                    
+                    <div *ngIf="field.hint" class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      {{ field.hint }}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Action buttons -->
+      <div class="mt-8 sm:mt-6 sm:flex sm:flex-row-reverse">
+        <button
+          type="button"
+          (click)="save()"
+          [disabled]="!isFormValid()"
+          class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
+        >
+          {{ connection.id ? 'Update' : 'Create' }}
+        </button>
+        <button
+          type="button"
+          (click)="cancel()"
+          class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-700 text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:mt-0 sm:w-auto sm:text-sm transition-colors duration-200"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

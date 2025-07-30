@@ -1,6 +1,6 @@
-# Contributing to [MYSQL GUI]
+# Contributing to [DBFuse]
 
-Thank you for considering contributing to [MYSQL GUI]! We welcome contributions from everyone. Please take a moment to review the following guidelines to help make the process smooth and enjoyable for all.
+Thank you for considering contributing to [DBFuse]! We welcome contributions from everyone. Please take a moment to review the following guidelines to help make the process smooth and enjoyable for all.
 
 ## Table of Contents
 
@@ -36,7 +36,7 @@ By participating in this project, you agree to abide by our [Code of Conduct](CO
 If you encounter a bug or have a feature request, please follow these steps:
 
 1. **Check Existing Issues**: Before creating a new issue, check if it has already been reported or addressed.
-2. **Create a New Issue**: If your issue is unique, create a new issue in the [Issues](https://github.com/kshashikumar/mysql-gui/issues) section of the repository. Be sure to include:
+2. **Create a New Issue**: If your issue is unique, create a new issue in the [Issues](https://github.com/kshashikumar/dbfuse-ai/issues) section of the repository. Be sure to include:
    - A clear title
    - A description of the issue
    - Steps to reproduce the problem (if applicable)
@@ -61,7 +61,7 @@ To contribute your changes back to the main repository, please follow these step
     git push origin feature/your-feature-name
     ```
 6. **Create a Pull Request**:
-   - Navigate to the [Pull Requests](https://github.com/kshashikumar/mysql-gui/pulls) section of the main repository.
+   - Navigate to the [Pull Requests](https://github.com/kshashikumar/dbfuse-ai/pulls) section of the main repository.
    - Click the "New Pull Request" button.
    - Select your branch from the "compare" dropdown menu.
    - Provide a clear title and description for your pull request, explaining what changes you made and why. Reference any related issues (e.g., "Fixes #123").
@@ -83,6 +83,6 @@ Please adhere to the following coding guidelines to maintain code quality and co
 
 - [Documentation](README.md)
 - [Code of Conduct](CODE_OF_CONDUCT.md)
-- [Issue Tracker](https://github.com/kshashikumar/mysql-gui/issues)
+- [Issue Tracker](https://github.com/kshashikumar/dbfuse/issues)
 
-Thank you for contributing to MySQL GUI! We appreciate your efforts and look forward to your input.
+Thank you for contributing to DBFuse! We appreciate your efforts and look forward to your input.
