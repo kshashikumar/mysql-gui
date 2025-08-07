@@ -7,7 +7,12 @@
     "start": "nodemon src/index.js",
     "client": "cd client/dbfuse-ai-client && npm run start",
     "dev": "concurrently \"npm run start\" \"npm run client\"",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "npm run test:all",
+    "test:all": "node src/config/tests/run-all-tests.js",
+    "test:mysql": "node src/config/tests/mysql-test-suite.js",
+    "test:postgres": "node src/config/tests/postgres-test-suite.js", 
+    "test:oracle": "node src/config/tests/oracle-test-suite.js",
+    "test:mssql": "node src/config/tests/mssql-test-suite.js"
   },
   "repository": {
     "type": "git",
@@ -26,6 +31,7 @@
     "@langchain/google-genai": "^0.1.4",
     "@langchain/mistralai": "^0.2.1",
     "@langchain/openai": "^0.3.14",
+    "axios": "^1.11.0",
     "base-64": "^1.0.0",
     "body-parser": "^1.20.3",
     "chalk": "^4.1.2",

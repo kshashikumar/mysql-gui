@@ -126,9 +126,14 @@ class MSSQLStrategy extends DatabaseStrategy {
       if (isSelectQuery) {
         let paginatedQuery = singleQuery;
         const hasLimitOrOffset = /OFFSET\s+\d+/i.test(singleQuery);
-        if (!hasLimitOrOffset) {
+        if (!hasLimitOrOffset && page && pageSize) {
           const offset = (page - 1) * pageSize;
-          paginatedQuery = `${singleQuery} ORDER BY (SELECT NULL) OFFSET ${offset} ROWS FETCH NEXT ${pageSize} ROWS ONLY`;
+          // Check if query already has ORDER BY, if not add one
+          if (!/ORDER\s+BY/i.test(singleQuery)) {
+            paginatedQuery = `${singleQuery} ORDER BY (SELECT NULL) OFFSET ${offset} ROWS FETCH NEXT ${pageSize} ROWS ONLY`;
+          } else {
+            paginatedQuery = `${singleQuery} OFFSET ${offset} ROWS FETCH NEXT ${pageSize} ROWS ONLY`;
+          }
         }
         const { recordset } = await this.pool.request().query(paginatedQuery);
         result.push(...recordset);
@@ -165,9 +170,9 @@ class MSSQLStrategy extends DatabaseStrategy {
           message: "Command executed successfully",
           affectedRows: rowsAffected[0] || 0,
         });
-      } else if (isGrantCommand || isRevokeCommand || isTransactionCommand) {
-        const adjustedQuery = singleQuery.replace(/BEGIN\s/i, "BEGIN TRAN ");
-        await this.pool.request().query(adjustedQuery);
+      }  else if (isGrantCommand || isRevokeCommand || isTransactionCommand) {
+        // Don't modify transaction commands - use them as-is
+        await this.pool.request().query(singleQuery);
         messages.push({ 
           query: singleQuery, 
           message: `${isGrantCommand || isRevokeCommand ? "Permission" : "Transaction"} command executed successfully` 

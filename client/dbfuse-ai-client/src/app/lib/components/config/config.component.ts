@@ -1,8 +1,7 @@
 // config.component.ts
 import { Component, OnInit } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
-import { CommonModule } from '@angular/common';
+import { CommonModule, Location } from '@angular/common';
 import { ConfigData, ModelOption, SaveResponse } from '@lib/utils/storage/storage.types';
 import { BackendService } from '@lib/services';
 import { FormsModule } from '@angular/forms';
@@ -65,7 +64,8 @@ export class ConfigComponent implements OnInit {
 
   constructor(
     private backendService: BackendService,
-    private router: Router
+    private router: Router,
+    private location: Location
   ) {}
 
   ngOnInit() {
@@ -103,7 +103,6 @@ export class ConfigComponent implements OnInit {
         this.showMessage(response.message, 'success');
         this.isSaving = false;
 
-        // Handle server restart for port changes
         if (response.requiresRestart && response.newPort) {
           this.handleServerRestart(response.newPort);
         }
@@ -120,12 +119,10 @@ export class ConfigComponent implements OnInit {
     this.isRestarting = true;
     this.showMessage('Server is restarting with new port...', 'info');
 
-    // Wait for server restart and then redirect to new port
     setTimeout(() => {
       const currentHost = window.location.hostname;
       const newUrl = `http://${currentHost}:${newPort}${window.location.pathname}`;
       
-      // Show countdown before redirect
       let countdown = 5;
       const countdownInterval = setInterval(() => {
         this.showMessage(`Redirecting to new port in ${countdown} seconds...`, 'info');
@@ -145,7 +142,6 @@ export class ConfigComponent implements OnInit {
   }
 
   onProviderChange() {
-    // Reset model when provider changes
     this.config.AI_MODEL = '';
   }
 
@@ -176,7 +172,6 @@ export class ConfigComponent implements OnInit {
     this.message = text;
     this.messageType = type;
     
-    // Auto-hide messages after 3 seconds
     setTimeout(() => {
       this.message = '';
       this.messageType = '';
@@ -184,7 +179,7 @@ export class ConfigComponent implements OnInit {
   }
 
   goBack() {
-    this.router.navigate(['/']);
+    this.location.back();
   }
 
   togglePasswordVisibility() {
