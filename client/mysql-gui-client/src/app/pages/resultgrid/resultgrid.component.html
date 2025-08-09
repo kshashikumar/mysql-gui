@@ -62,9 +62,10 @@
     </div>
     <div
         *ngIf="!isLoading && !errorMessage && rows.length > 0"
-        class="h-96 overflow-y-auto [&::-webkit-scrollbar]:hidden"
+        class="h-96 overflow-x-auto overflow-y-auto bg-white scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-100"
+        style="min-width: 100%;"
     >
-        <table class="h-20 min-w-max border-collapse border border-gray-300">
+        <table class="min-w-max border-collapse border border-gray-30">
             <thead class="sticky top-0 z-10 bg-gray-200">
                 <tr class="border-b border-gray-300">
                     <th
@@ -93,7 +94,7 @@
                         </span>
                         <span
                             *ngIf="copiedCell === rowIndex + '-' + header"
-                            class="fixed rounded bg-gray-800 px-2 py-1 text-xs font-semibold text-white"
+                            class="fixed rounded bg-gray-800 px-2 py-1 text-xs font-semibold text-white "
                             [style.left]="copiedPosition.left + 'px'"
                             [style.top]="copiedPosition.top + 'px'"
                         >
