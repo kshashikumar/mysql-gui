@@ -36,6 +36,17 @@ export class ConnectionCardComponent {
     this.onDelete.emit(typeof this.connection.id === 'string' ? parseInt(this.connection.id) : this.connection.id);
   }
 
+  getFavoriteButtonClasses(): string {
+    const baseClasses = 'flex-shrink-0 p-2 rounded-full text-gray-400 hover:text-yellow-500 transition-all duration-200';
+    const hoverClasses = 'hover:bg-yellow-50 dark:hover:bg-yellow-900/20';
+    
+    if (this.isFavorite) {
+      return `${baseClasses} ${hoverClasses} text-yellow-500 bg-yellow-50 dark:bg-yellow-900/20`;
+    }
+    
+    return `${baseClasses} ${hoverClasses}`;
+  }
+
   onTestConnection(): void {
     this.testing = true;
     this.onTest.emit(this.connection);
