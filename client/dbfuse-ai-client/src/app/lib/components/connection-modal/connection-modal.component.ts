@@ -49,10 +49,15 @@ export class ConnectionModalComponent implements OnInit, OnChanges {
     this.updateCurrentFields();
     this.validateForm();
 
-    // Subscribe to form changes for real-time validation
+    // Subscribe to dbType changes only to update fields
+    this.connectionForm.get('dbType')?.valueChanges.subscribe((dbType) => {
+      this.updateCurrentFields();
+      this.validateForm();
+    });
+
+    // Subscribe to form changes for validation only
     this.connectionForm.valueChanges.subscribe(() => {
       this.validateForm();
-      this.updateCurrentFields();
     });
   }
 
@@ -159,5 +164,10 @@ export class ConnectionModalComponent implements OnInit, OnChanges {
   getSelectOptions(fieldName: string): string[] {
     const field = this.currentFields.find(f => f.name === fieldName);
     return field?.options || [];
+  }
+
+  // TrackBy function to optimize ngFor
+  trackByFieldName(index: number, field: FormFieldConfig): string {
+    return field.name;
   }
 }

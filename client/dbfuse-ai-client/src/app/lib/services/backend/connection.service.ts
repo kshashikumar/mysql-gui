@@ -123,31 +123,34 @@ export class ConnectionService {
     validateConnectionConfig(config: ConnectionConfig): { isValid: boolean, errors: string[] } {
         const errors: string[] = [];
         
-        if (!config.username?.trim()) {
-            errors.push('Username is required');
-        }
-        
-        if (!config.host?.trim()) {
-            errors.push('Host is required');
-        }
-        
-        if (!config.port || config.port <= 0 || config.port > 65535) {
-            errors.push('Valid port number is required (1-65535)');
-        }
-        
         if (!config.dbType?.trim()) {
             errors.push('Database type is required');
         }
-        
+
         const validDbTypes = ['mysql2', 'pg', 'sqlite3', 'mssql', 'oracledb'];
         if (config.dbType && !validDbTypes.includes(config.dbType)) {
             errors.push(`Database type must be one of: ${validDbTypes.join(', ')}`);
         }
 
-        // SQLite specific validation
+        // Database-specific validation
         if (config.dbType === 'sqlite3') {
             if (!config.database?.trim()) {
                 errors.push('Database file path is required for SQLite');
+            }
+        } else {
+            // Non-SQLite databases require these fields
+            if (!config.username?.trim()) {
+                errors.push('Username is required');
+            }
+            if (!config.host?.trim()) {
+                errors.push('Host is required');
+            }
+            if (!config.port || config.port <= 0 || config.port > 65535) {
+                errors.push('Valid port number is required (1-65535)');
+            }
+            // PostgreSQL requires database
+            if (config.dbType === 'pg' && !config.database?.trim()) {
+                errors.push('Database name is required for PostgreSQL');
             }
         }
 
@@ -174,6 +177,8 @@ export class ConnectionService {
                 host: 'localhost',
                 port: 3306,
                 database: '',
+                username: '',
+                password: '',
                 ssl: false,
                 connectionTimeout: 60000,
                 poolSize: 10,
@@ -185,6 +190,8 @@ export class ConnectionService {
                 host: 'localhost',
                 port: 5432,
                 database: 'postgres',
+                username: '',
+                password: '',
                 ssl: false,
                 connectionTimeout: 60000,
                 poolSize: 10,
@@ -203,6 +210,8 @@ export class ConnectionService {
                 host: 'localhost',
                 port: 1433,
                 database: 'master',
+                username: '',
+                password: '',
                 encrypt: true,
                 trustServerCertificate: true,
                 connectionTimeout: 60000,
@@ -213,6 +222,8 @@ export class ConnectionService {
                 host: 'localhost',
                 port: 1521,
                 database: 'XE',
+                username: '',
+                password: '',
                 connectionTimeout: 60000,
                 poolSize: 10,
                 poolTimeout: 30
@@ -235,6 +246,9 @@ export class ConnectionService {
 
     // Format connection display name
     getConnectionDisplayName(connection: Connection): string {
+        if (connection.dbType === 'sqlite3') {
+            return `${connection.database} (${connection.dbType})`;
+        }
         const dbInfo = connection.database ? `/${connection.database}` : '';
         return `${connection.username}@${connection.host}:${connection.port}${dbInfo} (${connection.dbType})`;
     }

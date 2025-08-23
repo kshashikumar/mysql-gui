@@ -12,23 +12,22 @@ export class ConnectionFormHelper {
   // Create a reactive form for connection configuration
   createConnectionForm(connection?: Partial<ConnectionConfig>): FormGroup {
     const form = this.fb.group({
-      // Basic required fields
-      username: [connection?.username || '', [Validators.required, Validators.minLength(1)]],
-      password: [connection?.password || '', [Validators.required]],
-      host: [connection?.host || 'localhost', [Validators.required, this.hostnameValidator]],
+      // Basic fields
+      username: [connection?.username || '', [Validators.minLength(1)]],
+      password: [connection?.password || ''],
+      host: [connection?.host || 'localhost', [this.hostnameValidator]],
       port: [connection?.port || this.getDefaultPort(connection?.dbType), [
-        Validators.required, 
         Validators.min(1), 
         Validators.max(65535)
       ]],
       dbType: [connection?.dbType || 'mysql2', [Validators.required]],
-      database: [connection?.database || ''],
+      database: [connection?.database || ''], // No validators initially
       socketPath: [connection?.socketPath || ''],
 
       // Security options
       ssl: [connection?.ssl || false],
-      encrypt: [connection?.encrypt],
-      trustServerCertificate: [connection?.trustServerCertificate],
+      encrypt: [connection?.encrypt || false],
+      trustServerCertificate: [connection?.trustServerCertificate || false],
 
       // Connection options
       connectionTimeout: [connection?.connectionTimeout || 60000, [
@@ -41,9 +40,9 @@ export class ConnectionFormHelper {
       charset: [connection?.charset || 'UTF8_GENERAL_CI'],
       timezone: [connection?.timezone || 'local'],
       acquireTimeout: [connection?.acquireTimeout],
-      waitForConnections: [connection?.waitForConnections !== false], // default true
+      waitForConnections: [connection?.waitForConnections !== false],
       queueLimit: [connection?.queueLimit || 0],
-      reconnect: [connection?.reconnect !== false], // default true
+      reconnect: [connection?.reconnect !== false],
       idleTimeout: [connection?.idleTimeout || 30000],
 
       // PostgreSQL specific
@@ -82,7 +81,7 @@ export class ConnectionFormHelper {
       synchronous: [connection?.synchronous || 'NORMAL'],
       tempStore: [connection?.tempStore || ''],
       lockingMode: [connection?.lockingMode || ''],
-      foreignKeys: [connection?.foreignKeys !== false], // default true
+      foreignKeys: [connection?.foreignKeys !== false],
       readOnly: [connection?.readOnly || false]
     });
 
@@ -96,13 +95,18 @@ export class ConnectionFormHelper {
   private setupDynamicValidation(form: FormGroup): void {
     const dbTypeControl = form.get('dbType');
     const databaseControl = form.get('database');
-    const hostControl = form.get('host');
-    const portControl = form.get('port');
 
     if (dbTypeControl) {
       dbTypeControl.valueChanges.subscribe((dbType: DatabaseType) => {
         this.updateValidationForDbType(form, dbType);
         this.updateDefaultValues(form, dbType);
+      });
+    }
+
+    // Ensure database field updates trigger form validation
+    if (databaseControl) {
+      databaseControl.valueChanges.subscribe(() => {
+        databaseControl.updateValueAndValidity({ emitEvent: false });
       });
     }
   }
@@ -113,51 +117,57 @@ export class ConnectionFormHelper {
     const hostControl = form.get('host');
     const usernameControl = form.get('username');
     const passwordControl = form.get('password');
+    const portControl = form.get('port');
 
     // Clear existing validators
     databaseControl?.clearValidators();
     hostControl?.clearValidators();
     usernameControl?.clearValidators();
     passwordControl?.clearValidators();
+    portControl?.clearValidators();
 
     // Apply database-specific validation
     switch (dbType) {
       case 'sqlite3':
-        databaseControl?.setValidators([Validators.required]);
-        // SQLite doesn't need host, username, password for file-based databases
+        databaseControl?.setValidators([Validators.required, Validators.minLength(1)]);
+        // SQLite doesn't need host, username, password, or port
+        portControl?.setValidators([]); // Explicitly clear port validators
         break;
       
       case 'mysql2':
         hostControl?.setValidators([Validators.required, this.hostnameValidator]);
-        usernameControl?.setValidators([Validators.required]);
+        usernameControl?.setValidators([Validators.required, Validators.minLength(1)]);
         passwordControl?.setValidators([Validators.required]);
+        portControl?.setValidators([Validators.required, Validators.min(1), Validators.max(65535)]);
         break;
       
       case 'pg':
         hostControl?.setValidators([Validators.required, this.hostnameValidator]);
-        usernameControl?.setValidators([Validators.required]);
+        usernameControl?.setValidators([Validators.required, Validators.minLength(1)]);
         passwordControl?.setValidators([Validators.required]);
         databaseControl?.setValidators([Validators.required]);
+        portControl?.setValidators([Validators.required, Validators.min(1), Validators.max(65535)]);
         break;
       
       case 'mssql':
         hostControl?.setValidators([Validators.required, this.hostnameValidator]);
-        usernameControl?.setValidators([Validators.required]);
+        usernameControl?.setValidators([Validators.required, Validators.minLength(1)]);
         passwordControl?.setValidators([Validators.required]);
+        portControl?.setValidators([Validators.required, Validators.min(1), Validators.max(65535)]);
         break;
       
       case 'oracledb':
         hostControl?.setValidators([Validators.required, this.hostnameValidator]);
-        usernameControl?.setValidators([Validators.required]);
+        usernameControl?.setValidators([Validators.required, Validators.minLength(1)]);
         passwordControl?.setValidators([Validators.required]);
+        portControl?.setValidators([Validators.required, Validators.min(1), Validators.max(65535)]);
         break;
     }
 
-    // Update validity
-    databaseControl?.updateValueAndValidity();
-    hostControl?.updateValueAndValidity();
-    usernameControl?.updateValueAndValidity();
-    passwordControl?.updateValueAndValidity();
+    // Update validity for all controls
+    [databaseControl, hostControl, usernameControl, passwordControl, portControl].forEach(control => {
+      control?.updateValueAndValidity({ emitEvent: false });
+    });
   }
 
   // Update default values when database type changes
@@ -167,14 +177,14 @@ export class ConnectionFormHelper {
     
     // Update port default
     if (portControl && !portControl.dirty) {
-      portControl.setValue(this.getDefaultPort(dbType));
+      portControl.setValue(this.getDefaultPort(dbType), { emitEvent: false });
     }
 
     // Update database default
     if (databaseControl && !databaseControl.dirty) {
       const defaultDb = this.getDefaultDatabase(dbType);
       if (defaultDb !== null) {
-        databaseControl.setValue(defaultDb);
+        databaseControl.setValue(defaultDb, { emitEvent: false });
       }
     }
   }
@@ -246,7 +256,7 @@ export class ConnectionFormHelper {
     // Database-specific validation
     switch (config.dbType) {
       case 'sqlite3':
-        if (!config.database) {
+        if (!config.database || config.database.trim() === '') {
           errors.push('Database file path is required for SQLite');
         }
         break;
@@ -325,7 +335,7 @@ export class ConnectionFormHelper {
       ],
 
       sqlite3: [
-        { name: 'database', label: 'Database File Path', type: 'text', required: true, group: 'basic' },
+        { name: 'database', label: 'Database File Path', type: 'text', required: true, group: 'basic', placeholder: './data/database.db' },
         { name: 'readOnly', label: 'Read Only', type: 'checkbox', group: 'basic' },
         { name: 'journalMode', label: 'Journal Mode', type: 'select', options: ['DELETE', 'TRUNCATE', 'PERSIST', 'MEMORY', 'WAL', 'OFF'], group: 'advanced' },
         { name: 'synchronous', label: 'Synchronous Mode', type: 'select', options: ['OFF', 'NORMAL', 'FULL', 'EXTRA'], group: 'advanced' },

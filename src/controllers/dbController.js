@@ -215,14 +215,20 @@ const connect = async (req, res) => {
   console.log("Headers:", req.headers);
   
   const dbType = getDbType(req);
-  const { username, password, host, port, dbType: bodyDbType, database, socketPath } = req.body;
+  const { username, password, host, port, dbType: bodyDbType, database, socketPath, ...sqliteConfig } = req.body;
 
   if (!dbType) {
     return sendResponse(res, 400, null, "Database type (x-db-type) must be specified in headers");
   }
   
-  const requiredFields = ['username', 'password', 'host', 'port', 'dbType'];
-  const missingFields = requiredFields.filter(field => !req.body[field]);
+  let requiredFields = ['dbType'];
+  if (dbType !== 'sqlite3') {
+    requiredFields = ['username', 'password', 'host', 'port', 'dbType'];
+  } else {
+    requiredFields.push('database');
+  }
+  
+  const missingFields = requiredFields.filter(field => !req.body[field] && req.body[field] !== '');
   
   if (missingFields.length > 0) {
     return sendResponse(res, 400, null, `Missing required fields: ${missingFields.join(', ')}`);
@@ -232,13 +238,16 @@ const connect = async (req, res) => {
     return sendResponse(res, 400, null, "dbType in body must match x-db-type in headers");
   }
 
-  console.log(`> Attempting to connect to ${dbType} server @ ${host}:${port} with user ${username}`);
+  console.log(`> Attempting to connect to ${dbType} ${dbType === 'sqlite3' ? `database: ${database}` : `server @ ${host}:${port} with user ${username}`}`);
   
   try {
-    await dbContext.connect({ username, password, host, port, dbType, database, socketPath });
+    const config = dbType === 'sqlite3' 
+      ? { dbType, database, ...sqliteConfig }
+      : { username, password, host, port, dbType, database, socketPath };
+    await dbContext.connect(config);
     
     sendResponse(res, 200, { 
-      message: `Connected to ${dbType} server @ ${host}:${port}`,
+      message: `Connected to ${dbType} ${dbType === 'sqlite3' ? `database: ${database}` : `server @ ${host}:${port}`}`,
       timestamp: new Date().toISOString(),
       database: database || 'default'
     });

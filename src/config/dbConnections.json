@@ -13,7 +13,7 @@
     "poolSize": 12,
     "status": "Available",
     "createdAt": "2024-01-15T10:30:00.000Z",
-    "lastUsed": "2025-08-15T01:40:41.962Z"
+    "lastUsed": "2025-08-16T14:25:17.896Z"
   },
   {
     "id": 2,
@@ -69,8 +69,8 @@
     "password": "",
     "host": "",
     "port": 0,
-    "dbType": "sqlite",
-    "database": "/data/mydatabase.db",
+    "dbType": "sqlite3",
+    "database": "D:\\vs-code\\mysql-gui\\test\\sakila.db",
     "socketPath": "",
     "ssl": false,
     "connectionTimeout": 60000,
