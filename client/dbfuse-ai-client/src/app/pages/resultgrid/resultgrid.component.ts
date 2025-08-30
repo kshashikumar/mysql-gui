@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, Input, SimpleChanges, OnInit, inject } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, Input, Output, EventEmitter, SimpleChanges, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
@@ -20,6 +20,7 @@ export class ResultGridComponent implements OnInit {
     @Input() executeTriggered: boolean = false;
     @Input() dbName: string = '';
     @Input() tabId: string = '';
+    @Output() resultsChanged = new EventEmitter<any[]>();
 
     tabsData = new Map<string, any>();
     headers: string[] = [];
@@ -28,10 +29,14 @@ export class ResultGridComponent implements OnInit {
     copiedCell: string | null = null;
     errorMessage: string | null = null;
     copiedPosition = { left: 0, top: 0 };
+
     currentPage: number = 1;
     pageSize: number = 50; // Increased for better UX
     totalRows: number = 0;
     totalPages: number = 1;
+
+    queryResults: any[] = [];      // data.queries[]
+  activeQueryIndex: number = 0;
 
     ngOnInit(): void {
         // Initialize component
@@ -44,6 +49,14 @@ export class ResultGridComponent implements OnInit {
                 this.executeQuery();
             }
         }
+        if (changes['executeTriggered']) {
+        const prev = changes['executeTriggered'].previousValue;
+        const curr = changes['executeTriggered'].currentValue;
+        if (prev !== curr && this.dbName !== '' && this.triggerQuery !== '') {
+        this.currentPage = 1;
+        this.executeQuery();
+        }
+    }
     }
 
     // TrackBy functions for performance
@@ -55,60 +68,156 @@ export class ResultGridComponent implements OnInit {
         return `row-${index}-${Object.values(row).join('-')}`;
     }
 
-    executeQuery(): void {
-        this.isLoading = true;
-        this.errorMessage = null;
-        this._cdr.markForCheck();
+     executeQuery(): void {
+    this.isLoading = true;
+    this.errorMessage = null;
+    this._cdr.markForCheck();
 
-        const hasLimitOrOffset = /LIMIT\s+\d+/i.test(this.triggerQuery) || /OFFSET\s+\d+/i.test(this.triggerQuery);
+    this._dbService
+      .executeQuery(this.triggerQuery, this.dbName, { page: this.currentPage, pageSize: this.pageSize })
+      .subscribe({
+        next: (data) => {
+          if (data) {
+            if (Array.isArray(data.queries)) {
+              // Multi-query
+              this.queryResults = data.queries;
+              // Keep index in range (e.g., after re-exec)
+              this.activeQueryIndex = Math.min(this.activeQueryIndex, this.queryResults.length - 1);
+              if (this.activeQueryIndex < 0) this.activeQueryIndex = 0;
 
-        this._dbService.executeQuery(this.triggerQuery, this.dbName, { page: this.currentPage, pageSize: this.pageSize }).subscribe({
-            next: (data) => {
-                if (data) {
-                    const { rows, totalRows } = data;
-                    this.tabsData.set(this.tabId, data);
-                    this.setData(rows);
-                    
-                    if (hasLimitOrOffset) {
-                        this.currentPage = 1;
-                        this.totalPages = 1;
-                        this.totalRows = rows.length;
-                    } else {
-                        this.totalRows = totalRows || 0;
-                        this.totalPages = Math.ceil(this.totalRows / this.pageSize) || 1;
+              // Let parent render tabs
+              this.resultsChanged.emit(
+                (data.queries || []).map((q: any, idx: number) => {
+                    // Try to infer table name from query or fallback to index
+                    let tableName = '';
+                    const match = q.query?.match(/FROM\s+([^\s;]+)/i);
+                    if (match && match[1]) {
+                    tableName = match[1].replace(/[`"'[\]]/g, ''); // strip quotes/brackets
                     }
-                } else {
-                    console.error('Error: API returned empty data or unexpected format');
-                    this.setData([]);
-                    this.totalRows = 0;
-                    this.totalPages = 1;
-                }
-                this.isLoading = false;
-                this._cdr.markForCheck();
-            },
-            error: (error) => {
-                this.errorMessage = error?.error?.error || 'An error occurred while executing the query. Please check your syntax and try again.';
-                console.error('Error fetching data:', error);
-                this.isLoading = false;
-                this.rows = [];
-                this.headers = [];
-                this.totalRows = 0;
-                this.totalPages = 1;
-                this._cdr.markForCheck();
+                    const displayName = this.dbName && tableName
+                    ? `${this.dbName}.${tableName}`
+                    : `${this.dbName || 'Query'}_${idx + 1}`;
+                    
+                    return { ...q, displayName };
+                })
+                );
+
+              // Apply selected result to grid
+              this.applyActiveQueryData();
+
+              this.tabsData.set(this.tabId, data);
+            } else {
+              // Single-query fallback
+              const single = data as any;
+              const rows = Array.isArray(single.rows) ? single.rows : [];
+              const totalRows = typeof single.totalRows === 'number' ? single.totalRows : rows.length;
+
+              this.queryResults = [];
+              this.activeQueryIndex = 0;
+              this.resultsChanged.emit([]); // parent hides tabs
+
+              this.setData(rows);
+              this.totalRows = totalRows || 0;
+              this.totalPages = Math.ceil(this.totalRows / this.pageSize) || 1;
+              this.tabsData.set(this.tabId, data);
             }
-        });
+          } else {
+            this.setData([]);
+            this.queryResults = [];
+            this.resultsChanged.emit([]);
+            this.totalRows = 0;
+            this.totalPages = 1;
+          }
+          this.isLoading = false;
+          this._cdr.markForCheck();
+        },
+        error: (error) => {
+          this.errorMessage =
+            error?.error?.error ||
+            'An error occurred while executing the query. Please check your syntax and try again.';
+          this.isLoading = false;
+          this.rows = [];
+          this.headers = [];
+          this.queryResults = [];
+          this.resultsChanged.emit([]);
+          this.totalRows = 0;
+          this.totalPages = 1;
+          this._cdr.markForCheck();
+        },
+      });
+  }
+
+  // PUBLIC: switch active result from parent
+  public setActiveResultIndex(index: number): void {
+    if (index < 0 || index >= this.queryResults.length) return;
+    this.activeQueryIndex = index;
+    this.applyActiveQueryData();
+  }
+
+  // PUBLIC: close a result tab from parent
+  public closeResultTab(index: number): void {
+    if (index < 0 || index >= this.queryResults.length) return;
+
+    this.queryResults.splice(index, 1);
+
+    // Adjust active index
+    if (this.activeQueryIndex >= this.queryResults.length) {
+      this.activeQueryIndex = this.queryResults.length - 1;
     }
+    if (this.activeQueryIndex < 0) {
+      this.activeQueryIndex = 0;
+    }
+
+    // Emit to parent and re-apply view
+    this.resultsChanged.emit(this.queryResults);
+    if (this.queryResults.length > 0) {
+      this.applyActiveQueryData();
+    } else {
+      // No results left: clear grid
+      this.setData([]);
+      this.totalRows = 0;
+      this.totalPages = 1;
+      this._cdr.markForCheck();
+    }
+  }
+
+  // Apply current result into grid & pagination
+  private applyActiveQueryData(): void {
+    const active = this.queryResults[this.activeQueryIndex];
+    const rows = active?.rows || [];
+    this.setData(rows);
+
+    // Use per-statement pagination when present; else compute from totalRows
+    if (active?.pagination) {
+      this.currentPage = active.pagination.page || 1;
+      this.pageSize = active.pagination.pageSize || this.pageSize;
+      this.totalPages = active.pagination.totalPages || 1;
+      this.totalRows = typeof active.totalRows === 'number' ? active.totalRows : rows.length;
+    } else {
+      this.totalRows = typeof active?.totalRows === 'number' ? active.totalRows : rows.length;
+      this.totalPages = Math.ceil(this.totalRows / this.pageSize) || 1;
+    }
+  }
+
+
+  // NEW: switch between result tabs
+  selectResultTab(index: number): void {
+    if (index < 0 || index >= this.queryResults.length) return;
+    this.activeQueryIndex = index;
+    this.applyActiveQueryData();
+  }
+
 
     private setData(data: any[]): void {
-        if (data && data.length > 0) {
-            this.headers = Object.keys(data[0]);
-            this.rows = data;
-        } else {
-            this.headers = [];
-            this.rows = [];
-        }
-        this._cdr.markForCheck();
+    if (data && data.length > 0) {
+      this.headers = Object.keys(data[0]);
+      this.rows = data;
+    } else {
+      this.headers = [];
+      this.rows = [];
     }
+    this._cdr.markForCheck();
+  }
 
     copyToClipboard(text: string, rowIndex: number, header: string, event: MouseEvent): void {
         if (text === null || text === undefined) {
@@ -167,24 +276,24 @@ export class ResultGridComponent implements OnInit {
         document.body.removeChild(textArea);
     }
 
-    changePage(newPage: number): void {
-        if (newPage > 0 && newPage <= this.totalPages && newPage !== this.currentPage) {
-            this.currentPage = newPage;
-            this.executeQuery();
-        }
+     changePage(newPage: number): void {
+    if (newPage > 0 && newPage <= this.totalPages && newPage !== this.currentPage) {
+      this.currentPage = newPage;
+      this.executeQuery(); // backend paginates current SELECT; we keep active index
     }
+  }
 
     goToPage(event: Event): void {
-        const target = event.target as HTMLInputElement;
-        const pageNumber = parseInt(target.value, 10);
-        
-        if (!isNaN(pageNumber) && pageNumber >= 1 && pageNumber <= this.totalPages) {
-            this.changePage(pageNumber);
-        } else {
-            // Reset input value if invalid
-            target.value = this.currentPage.toString();
-        }
+    const target = event.target as HTMLInputElement;
+    const pageNumber = parseInt(target.value, 10);
+
+    if (!isNaN(pageNumber) && pageNumber >= 1 && pageNumber <= this.totalPages) {
+      this.changePage(pageNumber);
+    } else {
+      target.value = this.currentPage.toString();
     }
+  }
+
 
     // Utility method to get cell display value
     getCellDisplayValue(value: any): string {

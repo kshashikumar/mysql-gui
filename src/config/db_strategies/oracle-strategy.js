@@ -108,124 +108,155 @@ class OracleStrategy extends DatabaseStrategy {
   }
 
   async executeQuery(query, options = { page: 1, pageSize: 10 }) {
-    if (!this.pool) throw new Error("Oracle connection not initialized");
-    const { page, pageSize } = options;
-    let result = [];
-    let totalRows = null;
-    let messages = [];
+  if (!this.pool) throw new Error("Oracle connection not initialized");
+  const page = Number(options.page) || 1;
+  const pageSize = Number(options.pageSize) || 10;
 
-    const queries = query
-      .split(";")
-      .map((q) => q.trim())
-      .filter((q) => q);
+  const statements = query
+    .split(";")
+    .map((q) => q.trim())
+    .filter((q) => q);
 
-    const connection = await this.pool.getConnection();
-    try {
-      // Set current schema if specified
+  const connection = await this.pool.getConnection();
+  const queries = [];
+
+  try {
+    if (this.currentSchema) {
+      await connection.execute(`ALTER SESSION SET CURRENT_SCHEMA = "${this.currentSchema}"`);
+    }
+
+    for (let single of statements) {
+      const started = Date.now();
+      // strip schema prefix of currentSchema if present
       if (this.currentSchema) {
-        await connection.execute(`ALTER SESSION SET CURRENT_SCHEMA = "${this.currentSchema}"`);
+        const rx = new RegExp(`\\b${this.currentSchema}\\.([a-zA-Z_][a-zA-Z0-9_]*)\\b`, "gi");
+        single = single.replace(rx, "$1");
       }
 
-      for (let singleQuery of queries) {
-        // Remove schema prefix from table names (similar to PostgreSQL fix)
-        if (this.currentSchema) {
-          const schemaPrefixRegex = new RegExp(`\\b${this.currentSchema}\\.([a-zA-Z_][a-zA-Z0-9_]*)\\b`, 'gi');
-          singleQuery = singleQuery.replace(schemaPrefixRegex, '$1');
-        }
+      const isSelect = /^SELECT\s/i.test(single);
+      const isShow = /^SHOW\s/i.test(single);
+      const isDescribe = /^DESCRIBE\s/i.test(single);
+      const isInsert = /^INSERT\s/i.test(single);
+      const isUpdate = /^UPDATE\s/i.test(single);
+      const isDelete = /^DELETE\s/i.test(single);
+      const isCreate = /^CREATE\s/i.test(single);
+      const isDrop = /^DROP\s/i.test(single);
+      const isAlter = /^ALTER\s/i.test(single);
+      const isGrant = /^GRANT\s/i.test(single);
+      const isRevoke = /^REVOKE\s/i.test(single);
+      const isTxn = /^(BEGIN|START|COMMIT|ROLLBACK)\b/i.test(single);
 
-        const isSelectQuery = /^SELECT\s/i.test(singleQuery);
-        const isShowCommand = /^SHOW\s/i.test(singleQuery);
-        const isDescribeCommand = /^DESCRIBE\s/i.test(singleQuery);
-        const isInsertCommand = /^INSERT\s/i.test(singleQuery);
-        const isUpdateCommand = /^UPDATE\s/i.test(singleQuery);
-        const isDeleteCommand = /^DELETE\s/i.test(singleQuery);
-        const isCreateCommand = /^CREATE\s/i.test(singleQuery);
-        const isDropCommand = /^DROP\s/i.test(singleQuery);
-        const isAlterCommand = /^ALTER\s/i.test(singleQuery);
-        const isGrantCommand = /^GRANT\s/i.test(singleQuery);
-        const isRevokeCommand = /^REVOKE\s/i.test(singleQuery);
-        const isTransactionCommand = /^BEGIN\s|^START\s|^COMMIT\s|^ROLLBACK\s/i.test(singleQuery);
+      let entry = {
+        query: single,
+        type: "other",
+        rows: [],
+        totalRows: null,
+        messages: [],
+        pagination: undefined,
+        stats: undefined,
+      };
 
-        if (isSelectQuery) {
-          let paginatedQuery = singleQuery;
-          const hasLimitOrOffset = /FETCH\s+FIRST\s+\d+\s+ROWS\s+ONLY/i.test(singleQuery) || /OFFSET\s+\d+\s+ROWS/i.test(singleQuery);
-          if (!hasLimitOrOffset) {
+      try {
+        if (isSelect) {
+          entry.type = "select";
+          let paginated = single;
+          const hasFetch = /FETCH\s+FIRST\s+\d+\s+ROWS\s+ONLY/i.test(single) || /OFFSET\s+\d+\s+ROWS/i.test(single);
+          if (!hasFetch) {
             const offset = (page - 1) * pageSize;
-            // Oracle 12c+ pagination syntax
-            if (offset > 0) {
-              paginatedQuery = `${singleQuery} OFFSET ${offset} ROWS FETCH NEXT ${pageSize} ROWS ONLY`;
-            } else {
-              paginatedQuery = `${singleQuery} FETCH FIRST ${pageSize} ROWS ONLY`;
-            }
+            paginated =
+              offset > 0
+                ? `${single} OFFSET ${offset} ROWS FETCH NEXT ${pageSize} ROWS ONLY`
+                : `${single} FETCH FIRST ${pageSize} ROWS ONLY`;
           }
-          
-          const queryResult = await connection.execute(paginatedQuery, [], { 
-            outFormat: oracledb.OUT_FORMAT_OBJECT // Return as objects instead of arrays
-          });
-          result.push(...queryResult.rows);
+          const res = await connection.execute(paginated, [], { outFormat: oracledb.OUT_FORMAT_OBJECT });
+          entry.rows = res.rows || [];
 
-          if (totalRows === null) {
-            try {
-              const totalRowsQuery = `SELECT COUNT(*) as COUNT FROM (${singleQuery})`;
-              const { rows: countRows } = await connection.execute(totalRowsQuery, [], { 
-                outFormat: oracledb.OUT_FORMAT_OBJECT 
-              });
-              totalRows = parseInt(countRows[0].COUNT);
-            } catch (err) {
-              console.warn("Could not get total row count:", err.message);
-              totalRows = result.length; // Fallback
-            }
+          try {
+            const cntSql = `SELECT COUNT(*) AS COUNT FROM (${single})`;
+            const cnt = await connection.execute(cntSql, [], { outFormat: oracledb.OUT_FORMAT_OBJECT });
+            entry.totalRows = Number(cnt.rows?.[0]?.COUNT) || 0;
+            entry.pagination = {
+              page,
+              pageSize,
+              totalPages: Math.ceil(entry.totalRows / pageSize),
+              hasMore: page * pageSize < entry.totalRows,
+            };
+          } catch {
+            entry.totalRows = entry.rows.length;
           }
-        } else if (isShowCommand || isDescribeCommand) {
-          let queryResult;
-          if (isShowCommand && /SHOW\s+TABLES/i.test(singleQuery)) {
-            queryResult = await connection.execute(
-              `SELECT table_name FROM user_tables ORDER BY table_name`, 
-              [], 
+        } else if (isShow || isDescribe) {
+          entry.type = "schema";
+          let res;
+          if (isShow && /SHOW\s+TABLES/i.test(single)) {
+            res = await connection.execute(
+              `SELECT table_name FROM user_tables ORDER BY table_name`,
+              [],
               { outFormat: oracledb.OUT_FORMAT_OBJECT }
             );
-          } else if (isDescribeCommand) {
-            const tableName = singleQuery.match(/DESCRIBE\s+(\w+)/i)?.[1];
-            if (tableName) {
-              queryResult = await connection.execute(
+          } else if (isDescribe) {
+            const table = single.match(/DESCRIBE\s+(\w+)/i)?.[1];
+            if (table) {
+              res = await connection.execute(
                 `SELECT column_name, data_type, nullable, data_default 
                  FROM user_tab_columns 
                  WHERE table_name = UPPER(:1) 
-                 ORDER BY column_id`, 
-                [tableName],
+                 ORDER BY column_id`,
+                [table],
                 { outFormat: oracledb.OUT_FORMAT_OBJECT }
               );
             }
           }
-          if (queryResult) {
-            result.push(...queryResult.rows);
-            messages.push({ query: singleQuery, message: "Database command executed successfully" });
-          }
-        } else if (isInsertCommand || isUpdateCommand || isDeleteCommand || isCreateCommand || isDropCommand || isAlterCommand) {
-          const queryResult = await connection.execute(singleQuery);
-          await connection.commit(); // Auto-commit for DDL/DML
-          messages.push({
-            query: singleQuery,
+          entry.rows = res?.rows || [];
+          entry.messages.push({ query: single, message: "Schema command executed successfully" });
+        } else if (isInsert || isUpdate || isDelete) {
+          entry.type = "dml";
+          const r = await connection.execute(single);
+          await connection.commit();
+          entry.messages.push({
+            query: single,
             message: "Command executed successfully",
-            affectedRows: queryResult.rowsAffected || 0,
+            affectedRows: r.rowsAffected || 0,
           });
-        } else if (isGrantCommand || isRevokeCommand || isTransactionCommand) {
-          await connection.execute(singleQuery);
-          if (!isTransactionCommand) await connection.commit();
-          messages.push({ 
-            query: singleQuery, 
-            message: `${isGrantCommand || isRevokeCommand ? "Permission" : "Transaction"} command executed successfully` 
+          entry.stats = { affectedRows: r.rowsAffected || 0 };
+        } else if (isCreate || isDrop || isAlter) {
+          entry.type = "ddl";
+          const r = await connection.execute(single);
+          await connection.commit();
+          entry.messages.push({
+            query: single,
+            message: "DDL executed successfully",
+            affectedRows: r.rowsAffected || 0,
+          });
+          entry.stats = { affectedRows: r.rowsAffected || 0 };
+        } else if (isGrant || isRevoke || isTxn) {
+          entry.type = isTxn ? "transaction" : "permission";
+          await connection.execute(single);
+          if (!isTxn) await connection.commit();
+          entry.messages.push({
+            query: single,
+            message: isTxn ? "Transaction command executed successfully" : "Permission command executed successfully",
           });
         } else {
-          messages.push({ query: singleQuery, message: "Command not recognized or unsupported" });
+          entry.messages.push({ query: single, message: "Command not recognized or unsupported" });
         }
+      } catch (err) {
+        entry.messages.push({ query: single, error: true, message: err.message });
+      } finally {
+        entry.stats = { ...(entry.stats || {}), elapsedMs: Date.now() - started };
+        queries.push(entry);
       }
-    } finally {
-      await connection.close();
     }
-
-    return { rows: result, totalRows, messages };
+  } finally {
+    await connection.close();
   }
+
+  return {
+    queries,
+    totalQueries: queries.length,
+    executedAt: new Date().toISOString(),
+  };
+}
+
 
   async disconnect() {
     if (this.pool) {

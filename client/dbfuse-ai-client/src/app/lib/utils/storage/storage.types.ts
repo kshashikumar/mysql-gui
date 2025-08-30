@@ -206,19 +206,39 @@ export interface MultipleTablesInfo {
 }
 
 // Query Execution Result
-export interface QueryResult {
-  rows: any[];
-  totalRows: number | null;
-  messages: QueryMessage[];
-  pagination?: {
-    page: number;
-    pageSize: number;
-    totalPages: number | null;
-    hasMore?: boolean;
-  };
-  queryAnalysis?: QueryAnalysis;
+export interface QueryMessage {
+  query: string;
+  message: string;
+  type?: string;
+  affectedRows?: number;
+  insertId?: number | null;
+  warningCount?: number;
+}
+
+export interface QueryPagination {
+  page: number;
+  pageSize: number;
+  totalPages: number | null;
+  hasMore?: boolean;
+}
+
+export interface QueryResultItem {
+  type: string;                 // SELECT / SHOW / INSERT / ...
+  query: string;                // original statement text
+  rows: any[];                  // result rows (empty for non-SELECT)
+  totalRows: number;            // total rows for the statement
+  messages: QueryMessage[];     // statement-specific messages
+  pagination?: QueryPagination; // per-statement pagination
+}
+
+export interface QueryResultMulti {
+  queries: QueryResultItem[];
+  totalQueries: number;
   executedAt: string;
 }
+
+export type QueryResult = QueryResultMulti; // or union with legacy single shape if you still need it
+
 
 // Query Message
 export interface QueryMessage {

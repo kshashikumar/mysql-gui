@@ -167,18 +167,15 @@ const executeQuery = async (req, res) => {
   if (!dbType) {
     return sendResponse(res, 400, null, "Database type (x-db-type) must be specified in headers");
   }
-
   if (!query || typeof query !== 'string') {
     return sendResponse(res, 400, null, "Query is required and must be a string");
   }
 
-  // Validate and sanitize pagination
   page = Math.max(1, parseInt(page) || 1);
   pageSize = Math.min(Math.max(1, parseInt(pageSize) || 10), 1000);
 
   try {
     dbContext.setStrategy(dbType);
-    
     if (!(await dbContext.validateConnection())) {
       throw new Error("No active database connection. Call connect first.");
     }
@@ -189,26 +186,36 @@ const executeQuery = async (req, res) => {
       throw new Error("SQLite does not support switching databases");
     }
 
-    const { rows, totalRows, messages } = await dbContext.executeQuery(query, { page, pageSize, dbName });
-    
-    const response = { 
-      rows, 
-      totalRows, 
-      messages,
+    const result = await dbContext.executeQuery(query, { page, pageSize, dbName });
+
+    // NEW: pass through multi-query response when present
+    if (result && Array.isArray(result.queries)) {
+      return sendResponse(res, 200, {
+        queries: result.queries,
+        totalQueries: result.totalQueries,
+        executedAt: result.executedAt
+      });
+    }
+
+    // Backward-compat (if a strategy returns single shape)
+    const response = {
+      rows: result.rows || [],
+      totalRows: result.totalRows || 0,
+      messages: result.messages || [],
       pagination: {
         page,
         pageSize,
-        totalPages: totalRows ? Math.ceil(totalRows / pageSize) : null,
-        hasMore: totalRows ? (page * pageSize) < totalRows : false
+        totalPages: result.totalRows ? Math.ceil(result.totalRows / pageSize) : null,
+        hasMore: result.totalRows ? (page * pageSize) < result.totalRows : false
       },
       executedAt: new Date().toISOString()
     };
-    
     sendResponse(res, 200, response);
   } catch (err) {
     handleError(res, err, "executing query");
   }
 };
+
 
 const connect = async (req, res) => {
   console.log("Connect endpoint hit");

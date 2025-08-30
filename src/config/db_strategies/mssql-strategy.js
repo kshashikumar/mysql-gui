@@ -97,93 +97,139 @@ class MSSQLStrategy extends DatabaseStrategy {
     console.log(`> Switched to MSSQL database: ${dbName}`);
   }
 
-  async executeQuery(query, options = { page: 1, pageSize: 10 }) {
-    if (!this.pool) throw new Error("MSSQL connection not initialized");
-    const { page, pageSize, dbName } = options;
-    let result = [];
-    let totalRows = null;
-    let messages = [];
+  async executeQuery(query, options = { page: 1, pageSize: 10, dbName: undefined }) {
+  if (!this.pool) throw new Error("MSSQL connection not initialized");
+  const page = Number(options.page) || 1;
+  const pageSize = Number(options.pageSize) || 10;
+  const dbName = options.dbName;
 
-    const queries = query
-      .split(";")
-      .map((q) => q.trim())
-      .filter((q) => q);
+  const statements = query
+    .split(";")
+    .map((q) => q.trim())
+    .filter((q) => q);
 
-    for (const singleQuery of queries) {
-      const isSelectQuery = /^SELECT\s/i.test(singleQuery);
-      const isShowCommand = /^SHOW\s/i.test(singleQuery);
-      const isDescribeCommand = /^DESCRIBE\s/i.test(singleQuery);
-      const isInsertCommand = /^INSERT\s/i.test(singleQuery);
-      const isUpdateCommand = /^UPDATE\s/i.test(singleQuery);
-      const isDeleteCommand = /^DELETE\s/i.test(singleQuery);
-      const isCreateCommand = /^CREATE\s/i.test(singleQuery);
-      const isDropCommand = /^DROP\s/i.test(singleQuery);
-      const isAlterCommand = /^ALTER\s/i.test(singleQuery);
-      const isGrantCommand = /^GRANT\s/i.test(singleQuery);
-      const isRevokeCommand = /^REVOKE\s/i.test(singleQuery);
-      const isTransactionCommand = /^BEGIN\s|^START\s|^COMMIT\s|^ROLLBACK\s/i.test(singleQuery);
+  const queries = [];
 
-      if (isSelectQuery) {
-        let paginatedQuery = singleQuery;
-        const hasLimitOrOffset = /OFFSET\s+\d+/i.test(singleQuery);
-        if (!hasLimitOrOffset && page && pageSize) {
+  for (const single of statements) {
+    const started = Date.now();
+    const isSelect = /^SELECT\s/i.test(single);
+    const isShow = /^SHOW\s/i.test(single);
+    const isDescribe = /^DESCRIBE\s/i.test(single);
+    const isInsert = /^INSERT\s/i.test(single);
+    const isUpdate = /^UPDATE\s/i.test(single);
+    const isDelete = /^DELETE\s/i.test(single);
+    const isCreate = /^CREATE\s/i.test(single);
+    const isDrop = /^DROP\s/i.test(single);
+    const isAlter = /^ALTER\s/i.test(single);
+    const isGrant = /^GRANT\s/i.test(single);
+    const isRevoke = /^REVOKE\s/i.test(single);
+    const isTxn = /^(BEGIN|START|COMMIT|ROLLBACK)\b/i.test(single);
+
+    let entry = {
+      query: single,
+      type: "other",
+      rows: [],
+      totalRows: null,
+      messages: [],
+      pagination: undefined,
+      stats: undefined,
+    };
+
+    try {
+      if (isSelect) {
+        entry.type = "select";
+        let paginated = single;
+        const hasOffsetFetch = /OFFSET\s+\d+\s+ROWS/i.test(single);
+        if (!hasOffsetFetch && page && pageSize) {
           const offset = (page - 1) * pageSize;
-          // Check if query already has ORDER BY, if not add one
-          if (!/ORDER\s+BY/i.test(singleQuery)) {
-            paginatedQuery = `${singleQuery} ORDER BY (SELECT NULL) OFFSET ${offset} ROWS FETCH NEXT ${pageSize} ROWS ONLY`;
+          if (!/ORDER\s+BY/i.test(single)) {
+            paginated = `${single} ORDER BY (SELECT NULL) OFFSET ${offset} ROWS FETCH NEXT ${pageSize} ROWS ONLY`;
           } else {
-            paginatedQuery = `${singleQuery} OFFSET ${offset} ROWS FETCH NEXT ${pageSize} ROWS ONLY`;
+            paginated = `${single} OFFSET ${offset} ROWS FETCH NEXT ${pageSize} ROWS ONLY`;
           }
         }
-        const { recordset } = await this.pool.request().query(paginatedQuery);
-        result.push(...recordset);
+        const { recordset } = await this.pool.request().query(paginated);
+        entry.rows = recordset;
 
-        if (totalRows === null) {
-          const totalRowsQuery = `SELECT COUNT(*) as count FROM (${singleQuery}) as subquery`;
-          const { recordset: countRows } = await this.pool.request().query(totalRowsQuery);
-          totalRows = countRows[0].count;
+        try {
+          const cntSql = `SELECT COUNT(*) AS count FROM (${single}) AS subquery`;
+          const { recordset: cnt } = await this.pool.request().query(cntSql);
+          entry.totalRows = Number(cnt[0].count) || 0;
+          entry.pagination = {
+            page,
+            pageSize,
+            totalPages: Math.ceil(entry.totalRows / pageSize),
+            hasMore: page * pageSize < entry.totalRows,
+          };
+        } catch (e) {
+          entry.totalRows = recordset.length;
         }
-      } else if (isShowCommand || isDescribeCommand) {
+      } else if (isShow || isDescribe) {
+        entry.type = "schema";
         let recordset;
-        if (isShowCommand && /SHOW\s+TABLES/i.test(singleQuery)) {
-          const currentDb = dbName || 'master';
-          recordset = (await this.pool.request().query(`SELECT name AS table_name FROM ${currentDb}.sys.tables`)).recordset;
-        } else if (isDescribeCommand) {
-          const tableName = singleQuery.match(/DESCRIBE\s+(\w+)/i)?.[1];
-          if (tableName) {
-            const currentDb = dbName || 'master';
+        if (isShow && /SHOW\s+TABLES/i.test(single)) {
+          const currentDb = dbName || "master";
+          recordset = (
+            await this.pool.request().query(`SELECT name AS table_name FROM ${currentDb}.sys.tables`)
+          ).recordset;
+        } else if (isDescribe) {
+          const table = single.match(/DESCRIBE\s+(\w+)/i)?.[1];
+          if (table) {
+            const currentDb = dbName || "master";
             recordset = (
-              await this.pool.request().query(
-                `SELECT column_name, data_type FROM ${currentDb}.information_schema.columns WHERE table_name = '${tableName}'`
-              )
+              await this.pool
+                .request()
+                .query(
+                  `SELECT column_name, data_type FROM ${currentDb}.information_schema.columns WHERE table_name = '${table}'`
+                )
             ).recordset;
           }
         }
-        if (recordset) {
-          result.push(...recordset);
-          messages.push({ query: singleQuery, message: "Database command executed successfully" });
-        }
-      } else if (isInsertCommand || isUpdateCommand || isDeleteCommand || isCreateCommand || isDropCommand || isAlterCommand) {
-        const { rowsAffected } = await this.pool.request().query(singleQuery);
-        messages.push({
-          query: singleQuery,
+        entry.rows = recordset || [];
+        entry.messages.push({ query: single, message: "Schema command executed successfully" });
+      } else if (isInsert || isUpdate || isDelete) {
+        entry.type = "dml";
+        const { rowsAffected } = await this.pool.request().query(single);
+        entry.messages.push({
+          query: single,
           message: "Command executed successfully",
-          affectedRows: rowsAffected[0] || 0,
+          affectedRows: rowsAffected?.[0] || 0,
         });
-      }  else if (isGrantCommand || isRevokeCommand || isTransactionCommand) {
-        // Don't modify transaction commands - use them as-is
-        await this.pool.request().query(singleQuery);
-        messages.push({ 
-          query: singleQuery, 
-          message: `${isGrantCommand || isRevokeCommand ? "Permission" : "Transaction"} command executed successfully` 
+        entry.stats = { affectedRows: rowsAffected?.[0] || 0 };
+      } else if (isCreate || isDrop || isAlter) {
+        entry.type = "ddl";
+        const { rowsAffected } = await this.pool.request().query(single);
+        entry.messages.push({
+          query: single,
+          message: "DDL executed successfully",
+          affectedRows: rowsAffected?.[0] || 0,
+        });
+        entry.stats = { affectedRows: rowsAffected?.[0] || 0 };
+      } else if (isGrant || isRevoke || isTxn) {
+        entry.type = isTxn ? "transaction" : "permission";
+        await this.pool.request().query(single);
+        entry.messages.push({
+          query: single,
+          message: isTxn ? "Transaction command executed successfully" : "Permission command executed successfully",
         });
       } else {
-        messages.push({ query: singleQuery, message: "Command not recognized or unsupported" });
+        entry.messages.push({ query: single, message: "Command not recognized or unsupported" });
       }
+    } catch (err) {
+      entry.messages.push({ query: single, error: true, message: err.message });
+    } finally {
+      entry.stats = { ...(entry.stats || {}), elapsedMs: Date.now() - started };
+      queries.push(entry);
     }
-
-    return { rows: result, totalRows, messages };
   }
+
+  return {
+    queries,
+    totalQueries: queries.length,
+    executedAt: new Date().toISOString(),
+  };
+}
+
 
   async disconnect() {
     if (this.pool) {

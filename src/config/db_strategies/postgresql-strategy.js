@@ -136,101 +136,142 @@ class PostgreSQLStrategy extends DatabaseStrategy {
   }
 
   async executeQuery(query, options = { page: 1, pageSize: 10 }) {
-    if (!this.pool) throw new Error("PostgreSQL connection not initialized");
-    const { page, pageSize } = options;
-    let result = [];
-    let totalRows = null;
-    let messages = [];
+  if (!this.pool) throw new Error("PostgreSQL connection not initialized");
+  const page = Number(options.page) || 1;
+  const pageSize = Number(options.pageSize) || 10;
 
-    const queries = query
-      .split(";")
-      .map((q) => q.trim())
-      .filter((q) => q);
+  const statements = query
+    .split(";")
+    .map((q) => q.trim())
+    .filter((q) => q);
 
-    for (let singleQuery of queries) {
-      // Remove database prefix from table names for PostgreSQL
-      // Since we've already connected to the specific database, we don't need the prefix
-      // This handles cases like "mydatabase.employees" -> "employees"
-      const currentDatabase = this.pool.options.database;
-      if (currentDatabase) {
-        // Create a regex that matches the current database name followed by a dot and table name
-        const dbPrefixRegex = new RegExp(`\\b${currentDatabase}\\.([a-zA-Z_][a-zA-Z0-9_]*)\\b`, 'g');
-        singleQuery = singleQuery.replace(dbPrefixRegex, '$1');
-      }
-      const isSelectQuery = /^SELECT\s/i.test(singleQuery);
-      const isShowCommand = /^SHOW\s/i.test(singleQuery);
-      const isDescribeCommand = /^DESCRIBE\s/i.test(singleQuery);
-      const isInsertCommand = /^INSERT\s/i.test(singleQuery);
-      const isUpdateCommand = /^UPDATE\s/i.test(singleQuery);
-      const isDeleteCommand = /^DELETE\s/i.test(singleQuery);
-      const isCreateCommand = /^CREATE\s/i.test(singleQuery);
-      const isDropCommand = /^DROP\s/i.test(singleQuery);
-      const isAlterCommand = /^ALTER\s/i.test(singleQuery);
-      const isGrantCommand = /^GRANT\s/i.test(singleQuery);
-      const isRevokeCommand = /^REVOKE\s/i.test(singleQuery);
-      const isTransactionCommand = /^BEGIN\s|^START\s|^COMMIT\s|^ROLLBACK\s/i.test(singleQuery);
+  const queries = [];
 
-      if (isSelectQuery) {
-        let paginatedQuery = singleQuery;
-        const hasLimitOrOffset = /LIMIT\s+\d+/i.test(singleQuery) || /OFFSET\s+\d+/i.test(singleQuery);
-        if (!hasLimitOrOffset) {
+  for (let single of statements) {
+    const started = Date.now();
+
+    // strip current database prefix (db.table -> table) if present
+    const currentDb = this.pool.options.database;
+    if (currentDb) {
+      const dbRx = new RegExp(`\\b${currentDb}\\.([a-zA-Z_][a-zA-Z0-9_]*)\\b`, "g");
+      single = single.replace(dbRx, "$1");
+    }
+
+    const isSelect = /^SELECT\s/i.test(single);
+    const isShow = /^SHOW\s/i.test(single);
+    const isDescribe = /^DESCRIBE\s/i.test(single);
+    const isInsert = /^INSERT\s/i.test(single);
+    const isUpdate = /^UPDATE\s/i.test(single);
+    const isDelete = /^DELETE\s/i.test(single);
+    const isCreate = /^CREATE\s/i.test(single);
+    const isDrop = /^DROP\s/i.test(single);
+    const isAlter = /^ALTER\s/i.test(single);
+    const isGrant = /^GRANT\s/i.test(single);
+    const isRevoke = /^REVOKE\s/i.test(single);
+    const isTxn = /^(BEGIN|START|COMMIT|ROLLBACK)\b/i.test(single);
+
+    let entry = {
+      query: single,
+      type: "other",
+      rows: [],
+      totalRows: null,
+      messages: [],
+      pagination: undefined,
+      stats: undefined,
+    };
+
+    try {
+      if (isSelect) {
+        entry.type = "select";
+        let paginated = single;
+        const hasLimitOffset = /LIMIT\s+\d+/i.test(single) || /OFFSET\s+\d+/i.test(single);
+        if (!hasLimitOffset) {
           const offset = (page - 1) * pageSize;
-          paginatedQuery = `${singleQuery} LIMIT ${pageSize} OFFSET ${offset}`;
+          paginated = `${single} LIMIT ${pageSize} OFFSET ${offset}`;
         }
-        const { rows } = await this.pool.query(paginatedQuery);
-        result.push(...rows);
+        const { rows } = await this.pool.query(paginated);
+        entry.rows = rows;
 
-        if (totalRows === null) {
-          const totalRowsQuery = `SELECT COUNT(*) as count FROM (${singleQuery}) as subquery`;
-          const { rows: countRows } = await this.pool.query(totalRowsQuery);
-          totalRows = parseInt(countRows[0].count);
+        try {
+          const cntSql = `SELECT COUNT(*)::int AS count FROM (${single}) AS subquery`;
+          const { rows: cnt } = await this.pool.query(cntSql);
+          entry.totalRows = Number(cnt[0].count) || 0;
+          entry.pagination = {
+            page,
+            pageSize,
+            totalPages: Math.ceil(entry.totalRows / pageSize),
+            hasMore: page * pageSize < entry.totalRows,
+          };
+        } catch {
+          entry.totalRows = rows.length;
         }
-      } else if (isShowCommand || isDescribeCommand) {
-        let queryResult;
-        if (isShowCommand && /SHOW\s+TABLES/i.test(singleQuery)) {
-          // Fixed: Use current schema instead of options.dbName
-          queryResult = await this.pool.query(`
-            SELECT table_name 
-            FROM information_schema.tables 
-            WHERE table_schema = $1 
-            AND table_type = 'BASE TABLE'
-          `, [this.currentSchema]);
-        } else if (isDescribeCommand) {
-          const tableName = singleQuery.match(/DESCRIBE\s+(\w+)/i)?.[1];
-          if (tableName) {
-            queryResult = await this.pool.query(
+      } else if (isShow || isDescribe) {
+        entry.type = "schema";
+        let res;
+        if (isShow && /SHOW\s+TABLES/i.test(single)) {
+          res = await this.pool.query(
+            `SELECT table_name 
+             FROM information_schema.tables 
+             WHERE table_schema = $1 AND table_type = 'BASE TABLE'`,
+            [this.currentSchema]
+          );
+        } else if (isDescribe) {
+          const table = single.match(/DESCRIBE\s+(\w+)/i)?.[1];
+          if (table) {
+            res = await this.pool.query(
               `SELECT column_name, data_type, is_nullable, column_default
                FROM information_schema.columns 
                WHERE table_schema = $1 AND table_name = $2
                ORDER BY ordinal_position`,
-              [this.currentSchema, tableName]
+              [this.currentSchema, table]
             );
           }
         }
-        if (queryResult) {
-          result.push(...queryResult.rows);
-          messages.push({ query: singleQuery, message: "Database command executed successfully" });
-        }
-      } else if (isInsertCommand || isUpdateCommand || isDeleteCommand || isCreateCommand || isDropCommand || isAlterCommand) {
-        const { rowCount } = await this.pool.query(singleQuery);
-        messages.push({
-          query: singleQuery,
+        entry.rows = res?.rows || [];
+        entry.messages.push({ query: single, message: "Schema command executed successfully" });
+      } else if (isInsert || isUpdate || isDelete) {
+        entry.type = "dml";
+        const r = await this.pool.query(single);
+        entry.messages.push({
+          query: single,
           message: "Command executed successfully",
-          affectedRows: rowCount || 0,
+          affectedRows: r.rowCount || 0,
         });
-      } else if (isGrantCommand || isRevokeCommand || isTransactionCommand) {
-        await this.pool.query(singleQuery);
-        messages.push({ 
-          query: singleQuery, 
-          message: `${isGrantCommand || isRevokeCommand ? "Permission" : "Transaction"} command executed successfully` 
+        entry.stats = { affectedRows: r.rowCount || 0 };
+      } else if (isCreate || isDrop || isAlter) {
+        entry.type = "ddl";
+        const r = await this.pool.query(single);
+        entry.messages.push({
+          query: single,
+          message: "DDL executed successfully",
+          affectedRows: r.rowCount || 0,
+        });
+        entry.stats = { affectedRows: r.rowCount || 0 };
+      } else if (isGrant || isRevoke || isTxn) {
+        entry.type = isTxn ? "transaction" : "permission";
+        await this.pool.query(single);
+        entry.messages.push({
+          query: single,
+          message: isTxn ? "Transaction command executed successfully" : "Permission command executed successfully",
         });
       } else {
-        messages.push({ query: singleQuery, message: "Command not recognized or unsupported" });
+        entry.messages.push({ query: single, message: "Command not recognized or unsupported" });
       }
+    } catch (err) {
+      entry.messages.push({ query: single, error: true, message: err.message });
+    } finally {
+      entry.stats = { ...(entry.stats || {}), elapsedMs: Date.now() - started };
+      queries.push(entry);
     }
-
-    return { rows: result, totalRows, messages };
   }
+
+  return {
+    queries,
+    totalQueries: queries.length,
+    executedAt: new Date().toISOString(),
+  };
+}
+
 
   async disconnect() {
     if (this.pool) {

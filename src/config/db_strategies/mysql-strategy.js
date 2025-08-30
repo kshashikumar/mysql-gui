@@ -99,72 +99,130 @@ class MySQLStrategy extends DatabaseStrategy {
   }
 
   async executeQuery(query, options = { page: 1, pageSize: 10 }) {
-    if (!this.pool) throw new Error("MySQL connection not initialized");
-    const { page, pageSize } = options;
-    let result = [];
-    let totalRows = null;
-    let messages = [];
+  if (!this.pool) throw new Error("MySQL connection not initialized");
+  const { page, pageSize } = options;
 
-    const queries = query
-      .split(";")
-      .map((q) => q.trim())
-      .filter((q) => q);
+  const queries = [];
+  const statements = query
+    .split(";")
+    .map((q) => q.trim())
+    .filter((q) => q);
 
-    for (const singleQuery of queries) {
-      const isSelectQuery = /^SELECT\s/i.test(singleQuery);
-      const isShowCommand = /^SHOW\s/i.test(singleQuery);
-      const isDescribeCommand = /^DESCRIBE\s/i.test(singleQuery);
-      const isInsertCommand = /^INSERT\s/i.test(singleQuery);
-      const isUpdateCommand = /^UPDATE\s/i.test(singleQuery);
-      const isDeleteCommand = /^DELETE\s/i.test(singleQuery);
-      const isCreateCommand = /^CREATE\s/i.test(singleQuery);
-      const isDropCommand = /^DROP\s/i.test(singleQuery);
-      const isAlterCommand = /^ALTER\s/i.test(singleQuery);
-      const isGrantCommand = /^GRANT\s/i.test(singleQuery);
-      const isRevokeCommand = /^REVOKE\s/i.test(singleQuery);
-      const isTransactionCommand = /^BEGIN\s|^START\s|^COMMIT\s|^ROLLBACK\s/i.test(singleQuery);
+  for (const singleQuery of statements) {
+    const isSelectQuery = /^SELECT\s/i.test(singleQuery);
+    const isShowCommand = /^SHOW\s/i.test(singleQuery);
+    const isDescribeCommand = /^DESCRIBE\s/i.test(singleQuery);
+    const isInsertCommand = /^INSERT\s/i.test(singleQuery);
+    const isUpdateCommand = /^UPDATE\s/i.test(singleQuery);
+    const isDeleteCommand = /^DELETE\s/i.test(singleQuery);
+    const isCreateCommand = /^CREATE\s/i.test(singleQuery);
+    const isDropCommand = /^DROP\s/i.test(singleQuery);
+    const isAlterCommand = /^ALTER\s/i.test(singleQuery);
+    const isGrantCommand = /^GRANT\s/i.test(singleQuery);
+    const isRevokeCommand = /^REVOKE\s/i.test(singleQuery);
+    const isTransactionCommand = /^(BEGIN|START|COMMIT|ROLLBACK)\b/i.test(singleQuery);
 
-      if (isSelectQuery) {
-        let paginatedQuery = singleQuery;
-        const hasLimitOrOffset = /LIMIT\s+\d+/i.test(singleQuery) || /OFFSET\s+\d+/i.test(singleQuery);
-        if (!hasLimitOrOffset) {
-          const offset = (page - 1) * pageSize;
-          paginatedQuery = `${singleQuery} LIMIT ${pageSize} OFFSET ${offset}`;
+    if (isSelectQuery) {
+      const hasLimitOrOffset =
+        /LIMIT\s+\d+/i.test(singleQuery) || /OFFSET\s+\d+/i.test(singleQuery);
+
+      // Apply pagination only if user didn't specify LIMIT/OFFSET
+      let paginatedQuery = singleQuery;
+      if (!hasLimitOrOffset) {
+        const offset = (page - 1) * pageSize;
+        paginatedQuery = `${singleQuery} LIMIT ${pageSize} OFFSET ${offset}`;
+      }
+
+      const [rows] = await this.pool.query(paginatedQuery);
+
+      let totalRows = rows.length;
+      if (!hasLimitOrOffset) {
+        const totalRowsQuery = `SELECT COUNT(*) as count FROM (${singleQuery}) as subquery`;
+        const [countRows] = await this.pool.query(totalRowsQuery);
+        totalRows = countRows[0]?.count ?? 0;
+      }
+
+      const totalPages = hasLimitOrOffset
+        ? Math.ceil(totalRows / pageSize) || 1
+        : Math.ceil(totalRows / pageSize) || 1;
+
+      queries.push({
+        type: "SELECT",
+        query: singleQuery,
+        rows,
+        totalRows,
+        messages: [],
+        pagination: {
+          page,
+          pageSize,
+          totalPages,
+          hasMore: page * pageSize < totalRows
         }
-        const [rows] = await this.pool.query(paginatedQuery);
-        result.push(...rows);
+      });
+    } else if (isShowCommand || isDescribeCommand) {
+      const [rows] = await this.pool.query(singleQuery);
+      queries.push({
+        type: isShowCommand ? "SHOW" : "DESCRIBE",
+        query: singleQuery,
+        rows,
+        totalRows: rows.length,
+        messages: [{ query: singleQuery, message: "Database command executed successfully", type: isShowCommand ? "SHOW" : "DESCRIBE" }],
+        pagination: { page: 1, pageSize: rows.length || 1, totalPages: 1, hasMore: false }
+      });
+    } else if (isInsertCommand || isUpdateCommand || isDeleteCommand || isCreateCommand || isDropCommand || isAlterCommand) {
+      const [response] = await this.pool.query(singleQuery);
+      const type = isInsertCommand ? "INSERT" :
+                   isUpdateCommand ? "UPDATE" :
+                   isDeleteCommand ? "DELETE" :
+                   isCreateCommand ? "CREATE" :
+                   isDropCommand ? "DROP" : "ALTER";
 
-        if (totalRows === null) {
-          const totalRowsQuery = `SELECT COUNT(*) as count FROM (${singleQuery}) as subquery`;
-          const [countRows] = await this.pool.query(totalRowsQuery);
-          totalRows = countRows[0].count;
-        }
-      } else if (isShowCommand || isDescribeCommand) {
-        const [rows] = await this.pool.query(singleQuery);
-        result.push(...rows);
-        messages.push({ query: singleQuery, message: "Database command executed successfully" });
-      } else if (isInsertCommand || isUpdateCommand || isDeleteCommand || isCreateCommand || isDropCommand || isAlterCommand) {
-        const [response] = await this.pool.query(singleQuery);
-        messages.push({
+      queries.push({
+        type,
+        query: singleQuery,
+        rows: [],
+        totalRows: 0,
+        messages: [{
           query: singleQuery,
           message: "Command executed successfully",
+          type,
           affectedRows: response.affectedRows || 0,
           insertId: response.insertId || null,
           warningCount: response.warningCount || 0
-        });
-      } else if (isGrantCommand || isRevokeCommand || isTransactionCommand) {
-        await this.pool.query(singleQuery);
-        messages.push({ 
-          query: singleQuery, 
-          message: `${isGrantCommand || isRevokeCommand ? "Permission" : "Transaction"} command executed successfully` 
-        });
-      } else {
-        messages.push({ query: singleQuery, message: "Command not recognized or unsupported" });
-      }
+        }],
+        pagination: { page: 1, pageSize: 0, totalPages: 1, hasMore: false }
+      });
+    } else if (isGrantCommand || isRevokeCommand || isTransactionCommand) {
+      await this.pool.query(singleQuery);
+      const type = isGrantCommand ? "GRANT" : isRevokeCommand ? "REVOKE" : "TRANSACTION";
+      queries.push({
+        type,
+        query: singleQuery,
+        rows: [],
+        totalRows: 0,
+        messages: [{ query: singleQuery, message: `${type} command executed successfully`, type }],
+        pagination: { page: 1, pageSize: 0, totalPages: 1, hasMore: false }
+      });
+    } else {
+      queries.push({
+        type: "UNKNOWN",
+        query: singleQuery,
+        rows: [],
+        totalRows: 0,
+        messages: [{ query: singleQuery, message: "Command not recognized or unsupported", type: "UNKNOWN" }],
+        pagination: { page: 1, pageSize: 0, totalPages: 1, hasMore: false }
+      });
     }
-
-    return { rows: result, totalRows, messages };
   }
+
+  return {
+    queries,
+    totalQueries: queries.length,
+    executedAt: new Date().toISOString()
+  };
+}
+
+
 
   async disconnect() {
     if (this.pool) {

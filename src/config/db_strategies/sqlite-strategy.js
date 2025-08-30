@@ -148,121 +148,140 @@ class SQLiteStrategy extends DatabaseStrategy {
   }
 
   async executeQuery(query, options = { page: 1, pageSize: 10 }) {
-    if (!this.db) throw new Error("SQLite connection not initialized");
-    const { page, pageSize } = options;
-    let result = [];
-    let totalRows = null;
-    let messages = [];
+  if (!this.db) throw new Error("SQLite connection not initialized");
+  const page = Number(options.page) || 1;
+  const pageSize = Number(options.pageSize) || 10;
 
-    const queries = query
-      .split(";")
-      .map((q) => q.trim())
-      .filter((q) => q);
+  const statements = query
+    .split(";")
+    .map((q) => q.trim())
+    .filter((q) => q);
 
-    for (const singleQuery of queries) {
-      const isSelectQuery = /^SELECT\s/i.test(singleQuery);
-      const isShowCommand = /^SHOW\s/i.test(singleQuery);
-      const isDescribeCommand = /^DESCRIBE\s/i.test(singleQuery);
-      const isInsertCommand = /^INSERT\s/i.test(singleQuery);
-      const isUpdateCommand = /^UPDATE\s/i.test(singleQuery);
-      const isDeleteCommand = /^DELETE\s/i.test(singleQuery);
-      const isCreateCommand = /^CREATE\s/i.test(singleQuery);
-      const isDropCommand = /^DROP\s/i.test(singleQuery);
-      const isAlterCommand = /^ALTER\s/i.test(singleQuery);
-      const isGrantCommand = /^GRANT\s/i.test(singleQuery);
-      const isRevokeCommand = /^REVOKE\s/i.test(singleQuery);
-      const isTransactionCommand = /^BEGIN\s|^START\s|^COMMIT\s|^ROLLBACK\s/i.test(singleQuery);
-      const isPragmaCommand = /^PRAGMA\s/i.test(singleQuery);
+  const queries = [];
 
-      if (isSelectQuery) {
-        let paginatedQuery = singleQuery;
-        const hasLimitOrOffset = /LIMIT\s+\d+/i.test(singleQuery) || /OFFSET\s+\d+/i.test(singleQuery);
-        if (!hasLimitOrOffset) {
+  for (const single of statements) {
+    const started = Date.now();
+    const isSelect = /^SELECT\s/i.test(single);
+    const isShow = /^SHOW\s/i.test(single);
+    const isDescribe = /^DESCRIBE\s/i.test(single);
+    const isInsert = /^INSERT\s/i.test(single);
+    const isUpdate = /^UPDATE\s/i.test(single);
+    const isDelete = /^DELETE\s/i.test(single);
+    const isCreate = /^CREATE\s/i.test(single);
+    const isDrop = /^DROP\s/i.test(single);
+    const isAlter = /^ALTER\s/i.test(single);
+    const isGrant = /^GRANT\s/i.test(single);
+    const isRevoke = /^REVOKE\s/i.test(single);
+    const isTxn = /^(BEGIN|START|COMMIT|ROLLBACK)\b/i.test(single);
+    const isPragma = /^PRAGMA\s/i.test(single);
+
+    let entry = {
+      query: single,
+      type: "other",
+      rows: [],
+      totalRows: null,
+      messages: [],
+      pagination: undefined,
+      stats: undefined,
+    };
+
+    const runAll = (sql) =>
+      new Promise((resolve, reject) => {
+        this.db.all(sql, (err, rows) => (err ? reject(err) : resolve(rows)));
+      });
+    const runExec = (sql) =>
+      new Promise((resolve, reject) => {
+        this.db.run(sql, function (err) {
+          if (err) reject(err);
+          else resolve({ changes: this.changes, lastID: this.lastID });
+        });
+      });
+
+    try {
+      if (isSelect) {
+        entry.type = "select";
+        let paginated = single;
+        const hasLimitOffset = /LIMIT\s+\d+/i.test(single) || /OFFSET\s+\d+/i.test(single);
+        if (!hasLimitOffset) {
           const offset = (page - 1) * pageSize;
-          paginatedQuery = `${singleQuery} LIMIT ${pageSize} OFFSET ${offset}`;
+          paginated = `${single} LIMIT ${pageSize} OFFSET ${offset}`;
         }
-        const rows = await new Promise((resolve, reject) => {
-          this.db.all(paginatedQuery, (err, rows) => {
-            if (err) reject(err);
-            else resolve(rows);
-          });
-        });
-        result.push(...rows);
+        const rows = await runAll(paginated);
+        entry.rows = rows;
 
-        if (totalRows === null) {
-          const totalRowsQuery = `SELECT COUNT(*) as count FROM (${singleQuery}) as subquery`;
-          const countRows = await new Promise((resolve, reject) => {
-            this.db.all(totalRowsQuery, (err, rows) => {
-              if (err) reject(err);
-              else resolve(rows);
-            });
-          });
-          totalRows = countRows[0].count;
+        try {
+          const cntSql = `SELECT COUNT(*) as count FROM (${single}) as subquery`;
+          const cnt = await runAll(cntSql);
+          entry.totalRows = Number(cnt[0].count) || 0;
+          entry.pagination = {
+            page,
+            pageSize,
+            totalPages: Math.ceil(entry.totalRows / pageSize),
+            hasMore: page * pageSize < entry.totalRows,
+          };
+        } catch {
+          entry.totalRows = rows.length;
         }
-      } else if (isShowCommand || isDescribeCommand) {
-        let rows;
-        if (isShowCommand && /SHOW\s+TABLES/i.test(singleQuery)) {
-          rows = await new Promise((resolve, reject) => {
-            this.db.all(`SELECT name AS table_name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'`, (err, rows) => {
-              if (err) reject(err);
-              else resolve(rows);
-            });
-          });
-        } else if (isDescribeCommand) {
-          const tableName = singleQuery.match(/DESCRIBE\s+(\w+)/i)?.[1];
-          if (tableName) {
-            rows = await new Promise((resolve, reject) => {
-              this.db.all(`PRAGMA table_info(${tableName})`, (err, rows) => {
-                if (err) reject(err);
-                else resolve(rows);
-              });
-            });
-          }
+      } else if (isShow || isDescribe || isPragma) {
+        entry.type = "schema";
+        let rows = [];
+        if (isShow && /SHOW\s+TABLES/i.test(single)) {
+          rows = await runAll(
+            `SELECT name AS table_name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'`
+          );
+        } else if (isDescribe) {
+          const table = single.match(/DESCRIBE\s+(\w+)/i)?.[1];
+          if (table) rows = await runAll(`PRAGMA table_info(${table})`);
+        } else if (isPragma) {
+          rows = await runAll(single);
         }
-        if (rows) {
-          result.push(...rows);
-          messages.push({ query: singleQuery, message: "Database command executed successfully" });
-        }
-      } else if (isPragmaCommand) {
-        const rows = await new Promise((resolve, reject) => {
-          this.db.all(singleQuery, (err, rows) => {
-            if (err) reject(err);
-            else resolve(rows);
-          });
-        });
-        result.push(...rows);
-        messages.push({ query: singleQuery, message: "PRAGMA command executed successfully" });
-      } else if (isInsertCommand || isUpdateCommand || isDeleteCommand || isCreateCommand || isDropCommand || isAlterCommand) {
-        const { changes, lastID } = await new Promise((resolve, reject) => {
-          this.db.run(singleQuery, function (err) {
-            if (err) reject(err);
-            else resolve({ changes: this.changes, lastID: this.lastID });
-          });
-        });
-        messages.push({
-          query: singleQuery,
+        entry.rows = rows;
+        entry.messages.push({ query: single, message: "Schema/PRAGMA command executed successfully" });
+      } else if (isInsert || isUpdate || isDelete) {
+        entry.type = "dml";
+        const r = await runExec(single);
+        entry.messages.push({
+          query: single,
           message: "Command executed successfully",
-          affectedRows: changes || 0,
-          lastInsertId: lastID || null,
+          affectedRows: r.changes || 0,
+          lastInsertId: r.lastID || null,
         });
-      } else if (isGrantCommand || isRevokeCommand) {
-        messages.push({ query: singleQuery, message: "GRANT/REVOKE not supported in SQLite" });
-      } else if (isTransactionCommand) {
-        const adjustedQuery = singleQuery.replace(/BEGIN\s/i, "BEGIN TRANSACTION ");
-        await new Promise((resolve, reject) => {
-          this.db.run(adjustedQuery, (err) => {
-            if (err) reject(err);
-            else resolve();
-          });
+        entry.stats = { affectedRows: r.changes || 0, lastInsertId: r.lastID || null };
+      } else if (isCreate || isDrop || isAlter) {
+        entry.type = "ddl";
+        const r = await runExec(single);
+        entry.messages.push({
+          query: single,
+          message: "DDL executed successfully",
+          affectedRows: r.changes || 0,
         });
-        messages.push({ query: singleQuery, message: "Transaction command executed successfully" });
+        entry.stats = { affectedRows: r.changes || 0 };
+      } else if (isGrant || isRevoke) {
+        entry.type = "permission";
+        entry.messages.push({ query: single, message: "GRANT/REVOKE not supported in SQLite" });
+      } else if (isTxn) {
+        entry.type = "transaction";
+        const adjusted = single.replace(/BEGIN\s/i, "BEGIN TRANSACTION ");
+        await runExec(adjusted);
+        entry.messages.push({ query: single, message: "Transaction command executed successfully" });
       } else {
-        messages.push({ query: singleQuery, message: "Command not recognized or unsupported" });
+        entry.messages.push({ query: single, message: "Command not recognized or unsupported" });
       }
+    } catch (err) {
+      entry.messages.push({ query: single, error: true, message: err.message });
+    } finally {
+      entry.stats = { ...(entry.stats || {}), elapsedMs: Date.now() - started };
+      queries.push(entry);
     }
-
-    return { rows: result, totalRows, messages };
   }
+
+  return {
+    queries,
+    totalQueries: queries.length,
+    executedAt: new Date().toISOString(),
+  };
+}
+
 
   async disconnect() {
     if (this.db) {
