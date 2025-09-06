@@ -16,7 +16,7 @@ const CUSTOM_PLUGINS = [addDynamicIconSelectors()];
 /** @type {import('tailwindcss').Config} */
 export default {
     content: ['./src/**/*.{html,ts}', './projects/**/*.{html,ts}', './src/**/*.{js,jsx,ts,tsx}'],
-    darkMode: 'class',
+    darkMode: 'class',//activar
     theme: {
         fontFamily: {
             display: ['Oswald', 'sans-serif'],

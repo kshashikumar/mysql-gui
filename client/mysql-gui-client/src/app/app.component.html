@@ -1,3 +1,7 @@
 <app-layout-horizontal>
-    <router-outlet></router-outlet>
+  <button (click)="toggleDarkMode()" class="p-2 m-2 rounded bg-gray-200 dark:bg-gray-800 dark:text-white">
+    🌓 Dark Mode
+  </button>
+
+  <router-outlet></router-outlet>
 </app-layout-horizontal>
