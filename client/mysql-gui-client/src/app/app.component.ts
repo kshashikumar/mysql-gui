@@ -15,3 +15,7 @@ export class AppComponent implements OnInit {
 
     ngOnInit(): void {}
 }
+
+toggleDarkMode() {
+  document.documentElement.classList.toggle('dark');
+}
