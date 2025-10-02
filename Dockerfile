@@ -1,5 +1,5 @@
 # base image
-FROM node:22.10.0-slim
+FROM node:lts-bookworm-slim
 
 WORKDIR /app
 COPY package*.json ./
