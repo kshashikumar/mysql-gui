@@ -60,9 +60,11 @@
     >
         <p class="text-lg font-semibold">The query was executed successfully, but there are no rows to display.</p>
     </div>
+
+    <!-- Corrected scrollable grid -->
     <div
         *ngIf="!isLoading && !errorMessage && rows.length > 0"
-        class="h-96 overflow-y-auto [&::-webkit-scrollbar]:hidden"
+        class="h-96 overflow-y-auto result-grid"
     >
         <table class="h-20 min-w-max border-collapse border border-gray-300">
             <thead class="sticky top-0 z-10 bg-gray-200">
