@@ -39,9 +39,13 @@
     "node": ">=16.0.0"
   },
   "bin": {
-    "mysql-gui": "./cli.js"
+    "mysql-gui": "cli.js"
   },
   "devDependencies": {
-    "concurrently": "^9.1.0"
-  }
+    "@eslint/js": "^9.38.0",
+    "concurrently": "^9.1.0",
+    "eslint": "^9.38.0",
+    "globals": "^16.4.0"
+  },
+  "keywords": []
 }
