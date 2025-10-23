@@ -231,3 +231,7 @@ MYSQL GUI is open for **contributions**! If you have ideas for features, improve
 ## License
 
 MYSQL GUI is distributed under the [MIT License](LICENSE). This license permits commercial use, modification, distribution, and private use, with the requirement to include the original copyright and license notice.
+<p align="center">
+  <img src="https://github.com/SanthoshChevuri-444/mysql-gui/blob/main/assets/mysql-gui-logo.png?raw=true" alt="Project Logo" width="250">
+</p>
+
