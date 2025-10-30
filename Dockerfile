@@ -1,5 +1,5 @@
 # base image
-FROM node:22.10.0-slim
+FROM node:22.21.1-slim
 
 WORKDIR /app
 COPY package*.json ./
