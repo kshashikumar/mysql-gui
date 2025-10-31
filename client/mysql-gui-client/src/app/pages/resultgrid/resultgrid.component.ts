@@ -115,22 +115,49 @@ export class ResultGridComponent {
     }
 
     copyToClipboard(text: string, rowIndex: number, header: string, event: MouseEvent) {
-        navigator.clipboard.writeText(text).then(
-            () => {
-                this.copiedCell = `${rowIndex}-${header}`;
-                this.copiedPosition = { left: event.pageX, top: event.pageY - 30 };
+    navigator.clipboard.writeText(text).then(
+        () => {
+            this.copiedCell = `${rowIndex}-${header}`;
+            this.copiedPosition = { left: event.pageX, top: event.pageY - 30 };
+            this.cdr.markForCheck();
+
+            // ✅ Show a small toast message (visible above title)
+            const msg = document.createElement('div');
+            msg.innerText = 'Copied to clipboard!';
+            msg.style.position = 'fixed';
+            msg.style.top = '60px'; // ensures it's below the title bar
+            msg.style.right = '20px';
+            msg.style.background = '#333';
+            msg.style.color = '#fff';
+            msg.style.padding = '8px 12px';
+            msg.style.borderRadius = '6px';
+            msg.style.zIndex = '9999';
+            msg.style.boxShadow = '0 2px 8px rgba(0,0,0,0.3)';
+            msg.style.fontSize = '14px';
+            msg.style.opacity = '1';
+            msg.style.transition = 'opacity 0.5s';
+            document.body.appendChild(msg);
+
+            // Fade out after 2 seconds
+            setTimeout(() => {
+                msg.style.opacity = '0';
+                setTimeout(() => msg.remove(), 500);
+            }, 2000);
+
+            // Keep your original copied state logic
+            setTimeout(() => {
+                this.copiedCell = null;
                 this.cdr.markForCheck();
-                setTimeout(() => {
-                    this.copiedCell = null;
-                    this.cdr.markForCheck();
-                }, 1000);
-                console.log('Copied to clipboard:', text);
-            },
-            (err) => {
-                console.error('Failed to copy:', err);
-            },
-        );
-    }
+            }, 1000);
+
+            console.log('Copied to clipboard:', text);
+        },
+        (err) => {
+            console.error('Failed to copy:', err);
+        },
+    );
+}
+
 
     changePage(newPage: number) {
         if (newPage > 0 && newPage <= this.totalPages) {
