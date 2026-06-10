@@ -1,17 +1,38 @@
 <div
     *ngIf="tabsData.size > 0"
-    class="relative m-2 rounded-lg border-2 shadow-lg"
+        class="relative m-2 rounded-lg border-2 border-gray-300 shadow-lg dark:border-gray-700"
 >
-    <div
-        class="sticky top-0 z-20 flex items-center justify-between bg-gray-200 p-1 text-sm font-semibold text-gray-700 dark:bg-gray-800 dark:text-gray-300"
-    >
+    <div class="sticky top-0 z-20 flex flex-wrap items-center gap-2 bg-gray-200 p-2 text-sm font-semibold text-gray-700 dark:bg-gray-800 dark:text-gray-200">
         <div class="flex items-center rounded-lg bg-gray-100 px-2 py-1 shadow-sm">
             <span
                 class="mr-2 text-gray-600"
                 [ngClass]="'icon-[uiw--table]'"
             ></span>
             <span>Rows</span>
-            <span class="ml-2 font-bold">{{ totalRows }}</span>
+            <span class="ml-2 font-bold">{{ (rows | filterRows : appliedFilter).length }} / {{ rows.length }}</span>
+        </div>
+
+        <div class="flex min-w-[220px] flex-1 items-center justify-center">
+            <label class="relative w-full max-w-md">
+                <span class="sr-only">Filter current result rows</span>
+                <span class="icon-[fa--search] absolute left-3 top-2.5 text-gray-400"></span>
+                <input
+                    type="search"
+                    placeholder="Filter current page..."
+                    [(ngModel)]="filterText"
+                    (input)="updateFilter()"
+                    class="h-9 w-full rounded-md border border-gray-300 bg-white py-1 pl-9 pr-9 text-sm font-normal text-gray-800 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
+                />
+                <button
+                    *ngIf="filterText"
+                    type="button"
+                    aria-label="Clear result filter"
+                    (click)="clearFilter()"
+                    class="absolute right-2 top-1.5 rounded px-2 py-1 text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700"
+                >
+                    &times;
+                </button>
+            </label>
         </div>
 
         <div class="flex items-center">
@@ -56,33 +77,44 @@
 
     <div
         *ngIf="!isLoading && !errorMessage && rows.length === 0"
-        class="flex items-center justify-center p-4 text-center text-gray-600"
+        class="flex items-center justify-center p-4 text-center text-gray-600 dark:text-gray-300"
     >
         <p class="text-lg font-semibold">The query was executed successfully, but there are no rows to display.</p>
     </div>
     <div
-        *ngIf="!isLoading && !errorMessage && rows.length > 0"
+        *ngIf="!isLoading && !errorMessage && rows.length > 0 && (rows | filterRows : appliedFilter).length === 0"
+        class="flex items-center justify-center p-8 text-center text-gray-600 dark:text-gray-300"
+    >
+        <div>
+            <p class="text-lg font-semibold">No rows match “{{ appliedFilter }}”.</p>
+            <button type="button" (click)="clearFilter()" class="mt-2 text-sm font-semibold text-blue-600 hover:underline dark:text-blue-400">
+                Clear filter
+            </button>
+        </div>
+    </div>
+    <div
+        *ngIf="!isLoading && !errorMessage && (rows | filterRows : appliedFilter).length > 0"
         class="h-96 overflow-y-auto [&::-webkit-scrollbar]:hidden"
     >
-        <table class="h-20 min-w-max border-collapse border border-gray-300">
-            <thead class="sticky top-0 z-10 bg-gray-200">
+        <table class="h-20 min-w-max border-collapse border border-gray-300 dark:border-gray-700">
+            <thead class="sticky top-0 z-10 bg-gray-200 dark:bg-gray-800">
                 <tr class="border-b border-gray-300">
                     <th
                         *ngFor="let header of headers"
-                        class="border border-gray-300 px-1 py-1 text-left font-bold uppercase text-gray-800"
+                        class="border border-gray-300 px-1 py-1 text-left font-bold uppercase text-gray-800 dark:border-gray-700 dark:text-gray-100"
                     >
                         {{ header }}
                     </th>
                 </tr>
             </thead>
-            <tbody class="bg-white">
+            <tbody class="bg-white dark:bg-gray-900">
                 <tr
-                    *ngFor="let row of rows; let rowIndex = index"
-                    class="hover:bg-gray-100"
+                    *ngFor="let row of rows | filterRows : appliedFilter; let rowIndex = index"
+                    class="hover:bg-gray-100 dark:hover:bg-gray-700"
                 >
                     <td
                         *ngFor="let header of headers; let rowIndex = index"
-                        class="relative cursor-pointer text-ellipsis whitespace-nowrap border border-gray-300 px-1 py-1 text-gray-800"
+                        class="relative cursor-pointer text-ellipsis whitespace-nowrap border border-gray-300 px-1 py-1 text-gray-800 dark:border-gray-700 dark:text-gray-100"
                         [attr.title]="row[header]"
                     >
                         <span

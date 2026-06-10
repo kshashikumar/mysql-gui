@@ -8,6 +8,7 @@ describe('ThemeService', () => {
 
     beforeEach(() => {
         TestBed.configureTestingModule({ teardown: { destroyAfterEach: false } });
+        localStorage.clear();
         service = TestBed.inject(ThemeService);
         document = TestBed.inject(DOCUMENT);
     });
@@ -47,5 +48,10 @@ describe('ThemeService', () => {
         service.setTheme('dark');
         const bodyClasses = document.body.classList;
         expect(bodyClasses.contains('dark')).toBeTruthy();
+    });
+
+    it('should store manually selected light and dark themes', () => {
+        service.setTheme('dark');
+        expect(JSON.parse(localStorage.getItem('appTheme') || 'null')).toBe('dark');
     });
 });

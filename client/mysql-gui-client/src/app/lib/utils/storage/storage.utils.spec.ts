@@ -3,26 +3,26 @@ import { storage } from './storage.utils';
 describe('StorageUtils', () => {
     it('should store & retrieve item from local & session storage', () => {
         // LocalStorage
-        storage.setItem('App/theme', 'dark');
-        expect(storage.getItem('App/theme')).toBe('dark');
+        storage.setItem('appTheme', 'dark');
+        expect(storage.getItem('appTheme')).toBe('dark');
 
         // sessionStorage
-        storage.setItem('App/theme', 'dark', { api: 'SessionStorage' });
-        expect(storage.getItem('App/theme', { api: 'SessionStorage' })).toBe('dark');
+        storage.setItem('appTheme', 'dark', { api: 'SessionStorage' });
+        expect(storage.getItem('appTheme', { api: 'SessionStorage' })).toBe('dark');
     });
 
     it('should remove item from local & session storage', () => {
         // LocalStorage
-        storage.setItem('App/theme', 'dark');
-        expect(storage.getItem('App/theme')).toBe('dark');
-        storage.removeItem('App/theme');
-        expect(storage.getItem('App/theme')).toBeNull();
+        storage.setItem('appTheme', 'dark');
+        expect(storage.getItem('appTheme')).toBe('dark');
+        storage.removeItem('appTheme');
+        expect(storage.getItem('appTheme')).toBeNull();
 
         // sessionStorage
-        storage.setItem('App/theme', 'dark', { api: 'SessionStorage' });
-        expect(storage.getItem('App/theme', { api: 'SessionStorage' })).toBe('dark');
-        storage.removeItem('App/theme', { api: 'SessionStorage' });
-        expect(storage.getItem('App/theme', { api: 'SessionStorage' })).toBeNull();
+        storage.setItem('appTheme', 'dark', { api: 'SessionStorage' });
+        expect(storage.getItem('appTheme', { api: 'SessionStorage' })).toBe('dark');
+        storage.removeItem('appTheme', { api: 'SessionStorage' });
+        expect(storage.getItem('appTheme', { api: 'SessionStorage' })).toBeNull();
     });
 
     it('should clear all items from local & session storage', () => {

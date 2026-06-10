@@ -13,5 +13,7 @@ import { LayoutHorizontalComponent } from './lib/components/layouts/layout-horiz
 export class AppComponent implements OnInit {
     private readonly _themeService = inject(ThemeService);
 
-    ngOnInit(): void {}
+    ngOnInit(): void {
+        this._themeService.init();
+    }
 }

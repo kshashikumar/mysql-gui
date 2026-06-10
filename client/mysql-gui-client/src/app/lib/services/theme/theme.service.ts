@@ -22,6 +22,10 @@ export class ThemeService implements OnDestroy {
         return this.currentTheme$.getValue();
     }
 
+    public get systemTheme(): Exclude<AppTheme, 'system'> {
+        return this._mediaQuery.matches ? 'dark' : 'light';
+    }
+
     private get _storedTheme(): AppTheme | null {
         return storage.getItem('appTheme');
     }
@@ -49,10 +53,8 @@ export class ThemeService implements OnDestroy {
         this._clearThemes();
         this._storedTheme = theme;
 
-        let bodyClass = theme;
-        this.currentTheme$.next(bodyClass);
-
-        this._document.body.classList.add(bodyClass);
+        this.currentTheme$.next(theme);
+        this._document.body.classList.add(theme === 'system' ? this.systemTheme : theme);
     }
 
     /**
@@ -66,7 +68,9 @@ export class ThemeService implements OnDestroy {
         )
             .pipe(takeUntil(this._destroy$))
             .subscribe(() => {
-                // Only applies changes when the current theme is "system"
+                if (this.currentTheme === 'system') {
+                    this.setTheme('system');
+                }
             });
     }
 

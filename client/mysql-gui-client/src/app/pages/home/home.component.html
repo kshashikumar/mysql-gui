@@ -5,7 +5,7 @@
     <div class="flex flex-col">
         <div class="flex flex-col border-b border-gray-300">
             <div
-                class="h-[36px] border-2 border-b border-gray-200 bg-gray-400 text-center text-sm font-medium text-gray-500 [&::-webkit-scrollbar]:hidden"
+                class="h-[36px] border-2 border-b border-gray-200 bg-gray-400 text-center text-sm font-medium text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 [&::-webkit-scrollbar]:hidden"
             >
                 <div class="overflow-x-auto">
                     <ul
@@ -14,8 +14,8 @@
                     >
                         <li
                             *ngFor="let tab of tabs; let i = index"
-                            class="flex items-center text-black"
-                            [ngStyle]="{ 'background-color': selectedTab === i ? 'white' : 'transparent' }"
+                            class="flex items-center text-black dark:text-gray-100"
+                            [ngClass]="selectedTab === i ? 'bg-white dark:bg-gray-900' : 'bg-transparent'"
                         >
                             <a
                                 href="#"
@@ -45,7 +45,7 @@
                     ></textarea> -->
                     <div
                         #editor
-                        class="h-[200px] w-full resize-none bg-white p-2"
+                        class="h-[200px] w-full resize-none bg-white p-2 dark:bg-gray-900"
                     ></div>
                     <div class="flex items-center justify-end p-2">
                         <button
@@ -96,24 +96,24 @@
 
 <ng-template #showInitDBInfo>
     <div class="flex h-full flex-col items-center justify-start bg-gray-100 p-4 dark:bg-gray-900">
-        <table class="mb-4 min-w-full overflow-hidden rounded-lg border border-gray-400 bg-white shadow-lg">
-            <thead class="bg-gray-300">
+        <table class="mb-4 min-w-full overflow-hidden rounded-lg border border-gray-400 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800">
+            <thead class="bg-gray-300 dark:bg-gray-700">
                 <tr>
-                    <th class="px-4 py-2 text-left font-semibold text-gray-700">Database Name</th>
-                    <th class="px-4 py-2 text-left font-semibold text-gray-700">Size on Disk</th>
-                    <th class="px-4 py-2 text-left font-semibold text-gray-700">Tables Count</th>
-                    <th class="px-4 py-2 text-left font-semibold text-gray-700">Views Count</th>
+                    <th class="px-4 py-2 text-left font-semibold text-gray-700 dark:text-gray-100">Database Name</th>
+                    <th class="px-4 py-2 text-left font-semibold text-gray-700 dark:text-gray-100">Size on Disk</th>
+                    <th class="px-4 py-2 text-left font-semibold text-gray-700 dark:text-gray-100">Tables Count</th>
+                    <th class="px-4 py-2 text-left font-semibold text-gray-700 dark:text-gray-100">Views Count</th>
                 </tr>
             </thead>
             <tbody>
                 <tr
                     *ngFor="let db of paginatedData"
-                    class="border-b border-gray-100 transition duration-200 hover:bg-gray-50"
+                    class="border-b border-gray-100 transition duration-200 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-700"
                 >
-                    <td class="px-4 py-3 text-gray-800">{{ db.name }}</td>
-                    <td class="px-4 py-3 text-gray-800">{{ convertToReadableSize(db.sizeOnDisk) }}</td>
-                    <td class="px-4 py-3 text-gray-800">{{ db.tables.length }}</td>
-                    <td class="px-4 py-3 text-gray-800">{{ db.views.length }}</td>
+                    <td class="px-4 py-3 text-gray-800 dark:text-gray-100">{{ db.name }}</td>
+                    <td class="px-4 py-3 text-gray-800 dark:text-gray-100">{{ convertToReadableSize(db.sizeOnDisk) }}</td>
+                    <td class="px-4 py-3 text-gray-800 dark:text-gray-100">{{ db.tables.length }}</td>
+                    <td class="px-4 py-3 text-gray-800 dark:text-gray-100">{{ db.views.length }}</td>
                 </tr>
             </tbody>
         </table>

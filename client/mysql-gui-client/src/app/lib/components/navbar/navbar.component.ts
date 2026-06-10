@@ -41,9 +41,13 @@ export class NavbarComponent implements OnInit, OnDestroy {
     }
 
     toggleTheme(): void {
-        // Toggle between light and dark based on the current theme
-        const newTheme: AppTheme = this.currentTheme === 'light' ? 'dark' : 'light';
+        const activeTheme = this.currentTheme === 'system' ? this._themeService.systemTheme : this.currentTheme;
+        const newTheme: AppTheme = activeTheme === 'light' ? 'dark' : 'light';
         this.handleThemeChange(newTheme);
+    }
+
+    isDarkTheme(): boolean {
+        return this.currentTheme === 'dark' || (this.currentTheme === 'system' && this._themeService.systemTheme === 'dark');
     }
 
     handleThemeChange(theme: AppTheme): void {

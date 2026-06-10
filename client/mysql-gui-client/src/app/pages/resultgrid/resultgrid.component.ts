@@ -4,11 +4,12 @@ import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
 import { BackendService } from '@lib/services';
 import { TruncatePipe } from '@lib/providers/truncate.pipe';
+import { FilterRowsPipe } from '@lib/providers/filter-rows.pipe';
 
 @Component({
     selector: 'app-resultgrid',
     standalone: true,
-    imports: [CommonModule, RouterModule, FormsModule, TruncatePipe],
+    imports: [CommonModule, RouterModule, FormsModule, TruncatePipe, FilterRowsPipe],
     templateUrl: './resultgrid.component.html',
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -29,6 +30,9 @@ export class ResultGridComponent {
     pageSize: number = 10;
     totalRows: number = 0;
     totalPages: number = 1;
+    filterText: string = '';
+    appliedFilter: string = '';
+    private filterTimer?: ReturnType<typeof setTimeout>;
 
     constructor(private dbService: BackendService, private cdr: ChangeDetectorRef) {}
 
@@ -137,5 +141,20 @@ export class ResultGridComponent {
             this.currentPage = newPage;
             this.executeQuery();
         }
+    }
+
+    updateFilter() {
+        clearTimeout(this.filterTimer);
+        this.filterTimer = setTimeout(() => {
+            this.appliedFilter = this.filterText;
+            this.cdr.markForCheck();
+        }, 300);
+    }
+
+    clearFilter() {
+        clearTimeout(this.filterTimer);
+        this.filterText = '';
+        this.appliedFilter = '';
+        this.cdr.markForCheck();
     }
 }

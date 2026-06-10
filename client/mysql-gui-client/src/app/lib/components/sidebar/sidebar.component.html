@@ -1,4 +1,4 @@
-<div class="h-screen overflow-hidden bg-gray-400">
+<div class="h-screen overflow-hidden bg-gray-400 text-gray-900 dark:bg-gray-800 dark:text-gray-100">
     <div class="ml-2 text-sm">Navigator</div>
     <div class="h-[calc(100%-2rem)] bg-gray-100 dark:bg-gray-900">
         <div class="mb-1 flex items-center justify-between p-2 text-sm font-semibold">
@@ -37,7 +37,7 @@
                 [ngClass]="'icon-[fa--search]'"
             ></span> -->
             <input
-                class="mb-4 h-8 w-full rounded border focus:border-blue-300 focus:outline-none focus:ring"
+                class="mb-4 h-8 w-full rounded border bg-white text-gray-900 focus:border-blue-300 focus:outline-none focus:ring dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
                 type="text"
                 placeholder="Filter objects"
                 [(ngModel)]="filterText"

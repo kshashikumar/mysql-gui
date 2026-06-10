@@ -10,6 +10,7 @@ import {
     OnInit,
     SimpleChanges,
     ViewChild,
+    OnDestroy,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -19,8 +20,11 @@ import { ResultGridComponent } from '@pages/resultgrid/resultgrid.component';
 import * as ace from 'ace-builds';
 import 'ace-builds/src-noconflict/mode-sql';
 import 'ace-builds/src-noconflict/theme-github';
+import 'ace-builds/src-noconflict/theme-monokai';
 import 'ace-builds/src-noconflict/ext-language_tools';
 import { BackendService } from '@lib/services';
+import { ThemeService } from '@lib/services/theme';
+import { Subject, takeUntil } from 'rxjs';
 
 @Component({
     selector: 'app-home',
@@ -28,7 +32,7 @@ import { BackendService } from '@lib/services';
     imports: [CommonModule, RouterModule, FormsModule, ResultGridComponent],
     templateUrl: './home.component.html',
 })
-export class HomeComponent implements OnInit, OnChanges, AfterViewInit, AfterViewChecked {
+export class HomeComponent implements OnInit, OnChanges, AfterViewInit, AfterViewChecked, OnDestroy {
     @Input() tabData!: newTabData;
     @Input() openAIEnabled!: openAIEvent;
     @Input() InitDBInfo!: any;
@@ -43,18 +47,28 @@ export class HomeComponent implements OnInit, OnChanges, AfterViewInit, AfterVie
     executeTriggered: boolean = false;
     selectedDB: string = '';
     currentTabId: string = '';
+    private readonly destroy$ = new Subject<void>();
 
     currentPage: number = 1;
     pageSize: number = 5;
     totalRows: number = 0;
     paginatedData: any[] = [];
 
-    constructor(private cdr: ChangeDetectorRef, private dbService: BackendService) {}
+    constructor(private cdr: ChangeDetectorRef, private dbService: BackendService, private themeService: ThemeService) {}
 
     ngOnInit() {
+        this.themeService.currentTheme$.pipe(takeUntil(this.destroy$)).subscribe((theme) => {
+            const activeTheme = theme === 'system' ? this.themeService.systemTheme : theme;
+            this.editorInstance?.setTheme(activeTheme === 'dark' ? 'ace/theme/monokai' : 'ace/theme/github');
+        });
         if (this.InitDBInfo) {
             this.initializeData(this.InitDBInfo);
         }
+    }
+
+    ngOnDestroy() {
+        this.destroy$.next();
+        this.destroy$.complete();
     }
 
     ngOnChanges(changes: SimpleChanges): void {
@@ -185,6 +199,9 @@ export class HomeComponent implements OnInit, OnChanges, AfterViewInit, AfterVie
                 enableLiveAutocompletion: true,
                 enableSnippets: true,
             });
+            const activeTheme =
+                this.themeService.currentTheme === 'system' ? this.themeService.systemTheme : this.themeService.currentTheme;
+            this.editorInstance.setTheme(activeTheme === 'dark' ? 'ace/theme/monokai' : 'ace/theme/github');
             const langTools = ace.require('ace/ext/language_tools');
             langTools.setCompleters([langTools.snippetCompleter, langTools.textCompleter, langTools.keyWordCompleter]);
             this.editorInstance.on('change', () => {
