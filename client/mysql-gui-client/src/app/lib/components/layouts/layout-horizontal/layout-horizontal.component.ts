@@ -1,7 +1,13 @@
 import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, ViewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { ModalComponent, NavbarComponent, SideBarComponent, TableDesignerComponent } from '@lib/components';
+// Import siblings via direct paths (NOT the @lib/components barrel) to avoid a
+// circular import: the barrel re-exports this component, so importing siblings
+// through it left them undefined at module-eval time (ɵcmp of undefined).
+import { ModalComponent } from '../../modal/modal.component';
+import { NavbarComponent } from '../../navbar/navbar.component';
+import { SideBarComponent } from '../../sidebar/sidebar.component';
+import { TableDesignerComponent } from '../../table-designer/table-designer.component';
 import { HomeComponent } from '@pages/home/home.component';
 import { BackendService } from '@lib/services';
 import { newTabData, openAIEvent } from '@lib/utils/storage/storage.types';

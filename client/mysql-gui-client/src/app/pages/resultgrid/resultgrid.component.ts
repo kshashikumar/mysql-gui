@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
 import { BackendService } from '@lib/services';
-import { ModalComponent } from '@lib/components';
+import { ModalComponent } from '@lib/components/modal/modal.component';
 import { Column } from '@lib/utils/storage/storage.types';
 import { TruncatePipe } from '@lib/providers/truncate.pipe';
 
