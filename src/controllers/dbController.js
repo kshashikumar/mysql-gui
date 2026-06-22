@@ -1,4 +1,8 @@
 const DBConnector = require("../config/dbConnector");
+const {
+  escapeIdentifier,
+  escapeQualified,
+} = require("../utils/sqlIdentifier");
 
 const getDatabases = async (req, res) => {
   try {
@@ -381,10 +385,193 @@ const executeQuery = async (req, res) => {
   }
 };
 
+// ----------------------------------------------------------------------------
+// Row CRUD helpers (Phase 1)
+// ----------------------------------------------------------------------------
+
+// Returns the primary-key column names for a table, in ordinal order.
+// Queries INFORMATION_SCHEMA with explicit TABLE_SCHEMA, so no `USE` needed.
+async function getPrimaryKeyColumns(dbName, table) {
+  const rows = await DBConnector.GetDB().raw(
+    `
+        SELECT COLUMN_NAME AS column_name
+        FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_KEY = 'PRI'
+        ORDER BY ORDINAL_POSITION
+      `,
+    [dbName, table]
+  );
+  return rows[0].map((r) => r.column_name);
+}
+
+// Ensures the client-supplied identity columns are exactly the table's PK.
+function assertPrimaryKeyMatch(actualPk, clientPk) {
+  if (actualPk.length === 0) {
+    const err = new Error("NO_IDENTITY");
+    err.code = "NO_IDENTITY";
+    return err;
+  }
+  const sameSet =
+    actualPk.length === clientPk.length &&
+    actualPk.every((c) => clientPk.includes(c));
+  if (!sameSet) {
+    const err = new Error(
+      "Provided pkColumns do not match the table's primary key."
+    );
+    err.code = "PK_MISMATCH";
+    err.actualPk = actualPk;
+    return err;
+  }
+  return null;
+}
+
+// POST /api/mysql/database/:dbName/row/insert
+// body: { table: string, rows: Array<object> }
+// resp: { affectedRows: number, insertId: number|null }
+const insertRow = async (req, res) => {
+  const dbName = req.params.dbName;
+  const { table, rows } = req.body;
+
+  if (!table || !Array.isArray(rows) || rows.length === 0) {
+    return res
+      .status(400)
+      .json({ error: "table and a non-empty rows array are required." });
+  }
+
+  try {
+    await DBConnector.ConnectToDb(dbName);
+    const tbl = escapeQualified([table]);
+    let totalAffected = 0;
+    let lastInsertId = null;
+
+    for (const row of rows) {
+      const cols = Object.keys(row);
+      if (cols.length === 0) continue;
+      const colList = cols.map((c) => escapeIdentifier(c)).join(", ");
+      const placeholders = cols.map(() => "?").join(", ");
+      const sql = `INSERT INTO ${tbl} (${colList}) VALUES (${placeholders})`;
+      const result = await DBConnector.GetDB().raw(sql, Object.values(row));
+      totalAffected += result[0]?.affectedRows || 0;
+      if (result[0]?.insertId) lastInsertId = result[0].insertId;
+    }
+
+    res.status(200).json({ affectedRows: totalAffected, insertId: lastInsertId });
+  } catch (err) {
+    console.error("Error inserting row:", err);
+    res.status(500).json({ error: "Error inserting row.", detail: err.message });
+  }
+};
+
+// PUT /api/mysql/database/:dbName/row/update
+// body: { table, pkColumns: string[], pkValues: any[], values: object }
+// resp: { affectedRows: number }
+const updateRow = async (req, res) => {
+  const dbName = req.params.dbName;
+  const { table, pkColumns, pkValues, values } = req.body;
+
+  if (
+    !table ||
+    !Array.isArray(pkColumns) ||
+    !Array.isArray(pkValues) ||
+    !values ||
+    typeof values !== "object"
+  ) {
+    return res.status(400).json({
+      error: "table, pkColumns[], pkValues[], and values{} are required.",
+    });
+  }
+
+  try {
+    await DBConnector.ConnectToDb(dbName);
+    const actualPk = await getPrimaryKeyColumns(dbName, table);
+    const identityErr = assertPrimaryKeyMatch(actualPk, pkColumns);
+    if (identityErr) {
+      return res.status(400).json({
+        error: identityErr.message,
+        code: identityErr.code,
+        actualPk: identityErr.actualPk,
+      });
+    }
+    if (pkColumns.length !== pkValues.length) {
+      return res
+        .status(400)
+        .json({ error: "pkColumns and pkValues length mismatch." });
+    }
+
+    const setCols = Object.keys(values);
+    if (setCols.length === 0) {
+      return res.status(200).json({ affectedRows: 0 });
+    }
+
+    const tbl = escapeQualified([table]);
+    const setClause = setCols
+      .map((c) => `${escapeIdentifier(c)} = ?`)
+      .join(", ");
+    const whereClause = pkColumns
+      .map((c) => `${escapeIdentifier(c)} = ?`)
+      .join(" AND ");
+    const sql = `UPDATE ${tbl} SET ${setClause} WHERE ${whereClause}`;
+    const bindings = [...setCols.map((c) => values[c]), ...pkValues];
+
+    const result = await DBConnector.GetDB().raw(sql, bindings);
+    res.status(200).json({ affectedRows: result[0]?.affectedRows || 0 });
+  } catch (err) {
+    console.error("Error updating row:", err);
+    res.status(500).json({ error: "Error updating row.", detail: err.message });
+  }
+};
+
+// DELETE /api/mysql/database/:dbName/row/delete
+// body: { table, pkColumns: string[], pkValues: any[] }
+// resp: { affectedRows: number }
+const deleteRow = async (req, res) => {
+  const dbName = req.params.dbName;
+  const { table, pkColumns, pkValues } = req.body;
+
+  if (!table || !Array.isArray(pkColumns) || !Array.isArray(pkValues)) {
+    return res
+      .status(400)
+      .json({ error: "table, pkColumns[], and pkValues[] are required." });
+  }
+
+  try {
+    await DBConnector.ConnectToDb(dbName);
+    const actualPk = await getPrimaryKeyColumns(dbName, table);
+    const identityErr = assertPrimaryKeyMatch(actualPk, pkColumns);
+    if (identityErr) {
+      return res.status(400).json({
+        error: identityErr.message,
+        code: identityErr.code,
+        actualPk: identityErr.actualPk,
+      });
+    }
+    if (pkColumns.length !== pkValues.length) {
+      return res
+        .status(400)
+        .json({ error: "pkColumns and pkValues length mismatch." });
+    }
+
+    const tbl = escapeQualified([table]);
+    const whereClause = pkColumns
+      .map((c) => `${escapeIdentifier(c)} = ?`)
+      .join(" AND ");
+    const sql = `DELETE FROM ${tbl} WHERE ${whereClause}`;
+
+    const result = await DBConnector.GetDB().raw(sql, pkValues);
+    res.status(200).json({ affectedRows: result[0]?.affectedRows || 0 });
+  } catch (err) {
+    console.error("Error deleting row:", err);
+    res.status(500).json({ error: "Error deleting row.", detail: err.message });
+  }
+};
+
 module.exports = {
   getDatabases,
   getTables,
   getTableInfo,
   executeQuery,
   getMultipleTablesInfo,
+  insertRow,
+  updateRow,
+  deleteRow,
 };
