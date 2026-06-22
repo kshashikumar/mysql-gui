@@ -14,7 +14,7 @@ import {
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
-import { DbMeta, MultipleTablesInfo, newTabData, openAIEvent } from '@lib/utils/storage/storage.types';
+import { Column, DbMeta, MultipleTablesInfo, newTabData, openAIEvent } from '@lib/utils/storage/storage.types';
 import { ResultGridComponent } from '@pages/resultgrid/resultgrid.component';
 import * as ace from 'ace-builds';
 import 'ace-builds/src-noconflict/mode-sql';
@@ -43,6 +43,9 @@ export class HomeComponent implements OnInit, OnChanges, AfterViewInit, AfterVie
     executeTriggered: boolean = false;
     selectedDB: string = '';
     currentTabId: string = '';
+    // Column metadata for the active tab's table (drives inline editing in the grid).
+    tableColumns: Column[] = [];
+    currentTableName: string = '';
 
     currentPage: number = 1;
     pageSize: number = 5;
@@ -265,6 +268,8 @@ export class HomeComponent implements OnInit, OnChanges, AfterViewInit, AfterVie
         this.selectedDB = this.tabs[tabIndex].dbName;
         this.triggerQuery = this.tabContent[tabIndex];
         this.currentTabId = this.tabs[tabIndex].id;
+        this.currentTableName = this.tabs[tabIndex].tableName;
+        this.loadTableColumns(this.selectedDB, this.currentTableName);
 
         if (this.editorInstance) {
             this.editorInstance.setValue(this.tabContent[tabIndex]);
@@ -272,6 +277,24 @@ export class HomeComponent implements OnInit, OnChanges, AfterViewInit, AfterVie
         this.executeTriggered = false;
         this.cdr.detectChanges();
         this.scrollTabIntoView(tabIndex);
+    }
+
+    loadTableColumns(dbName: string, tableName: string) {
+        if (!dbName || !tableName) {
+            this.tableColumns = [];
+            return;
+        }
+        this.dbService.getTableInfo(dbName, tableName).subscribe(
+            (info) => {
+                this.tableColumns = info?.columns || [];
+                this.cdr.detectChanges();
+            },
+            (error) => {
+                console.error('Error fetching table columns:', error);
+                this.tableColumns = [];
+                this.cdr.detectChanges();
+            },
+        );
     }
 
     scrollTabIntoView(tabIndex: number) {
@@ -297,6 +320,15 @@ export class HomeComponent implements OnInit, OnChanges, AfterViewInit, AfterVie
             this.editorInstance?.destroy();
             this.editorInstance = null;
             this.needsEditorInit = true;
+        }
+
+        if (this.selectedTab >= 0 && this.tabs[this.selectedTab]) {
+            const t = this.tabs[this.selectedTab];
+            this.currentTableName = t.tableName;
+            this.loadTableColumns(t.dbName, t.tableName);
+        } else {
+            this.currentTableName = '';
+            this.tableColumns = [];
         }
     }
 

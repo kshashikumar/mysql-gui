@@ -12,9 +12,25 @@
             ></span>
             <span>Rows</span>
             <span class="ml-2 font-bold">{{ totalRows }}</span>
+            <span
+                *ngIf="tableName"
+                class="ml-3 rounded bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900 dark:text-blue-200"
+                [attr.title]="editable ? '该表可就地编辑' : '结果集缺少主键或为自定义查询，只读'"
+            >
+                {{ editable ? '可编辑' : '只读' }}
+            </span>
         </div>
 
         <div class="flex items-center">
+            <button
+                *ngIf="editable"
+                (click)="openInsert()"
+                class="mr-4 flex items-center rounded-full bg-blue-500 px-3 py-1 text-white shadow-md transition hover:bg-blue-700"
+                title="新增行"
+            >
+                <span class="mr-1" [ngClass]="'icon-[fa-solid--plus]'"></span>
+                新增行
+            </button>
             <button
                 (click)="changePage(currentPage - 1)"
                 [disabled]="currentPage === 1"
@@ -60,6 +76,7 @@
     >
         <p class="text-lg font-semibold">The query was executed successfully, but there are no rows to display.</p>
     </div>
+
     <div
         *ngIf="!isLoading && !errorMessage && rows.length > 0"
         class="h-96 overflow-y-auto [&::-webkit-scrollbar]:hidden"
@@ -67,9 +84,12 @@
         <table class="h-20 min-w-max border-collapse border border-gray-300">
             <thead class="sticky top-0 z-10 bg-gray-200">
                 <tr class="border-b border-gray-300">
+                    <th *ngIf="editable" class="w-8 border border-gray-300 px-1 py-1 text-center font-bold text-gray-800"></th>
                     <th
                         *ngFor="let header of headers"
                         class="border border-gray-300 px-1 py-1 text-left font-bold uppercase text-gray-800"
+                        [ngClass]="{ 'text-blue-700 dark:text-blue-300': isPk(header) }"
+                        [attr.title]="isPk(header) ? 'Primary key' : ''"
                     >
                         {{ header }}
                     </th>
@@ -80,28 +100,181 @@
                     *ngFor="let row of rows; let rowIndex = index"
                     class="hover:bg-gray-100"
                 >
+                    <!-- Delete-row action -->
+                    <td *ngIf="editable" class="border border-gray-300 px-1 py-1 text-center">
+                        <button
+                            (click)="askDeleteRow(row)"
+                            class="rounded p-1 text-gray-400 hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900"
+                            title="删除该行"
+                        >
+                            <span [ngClass]="'icon-[fa-solid--trash]'"></span>
+                        </button>
+                    </td>
+
                     <td
-                        *ngFor="let header of headers; let rowIndex = index"
-                        class="relative cursor-pointer text-ellipsis whitespace-nowrap border border-gray-300 px-1 py-1 text-gray-800"
+                        *ngFor="let header of headers; let colIdx = index"
+                        class="relative text-ellipsis whitespace-nowrap border border-gray-300 px-1 py-1 text-gray-800"
                         [attr.title]="row[header]"
                     >
-                        <span
-                            class="inline-block w-full truncate hover:overflow-visible"
-                            (click)="copyToClipboard(row[header], rowIndex, header, $event)"
-                        >
-                            {{ row[header] | truncate : 20 }}
-                        </span>
-                        <span
-                            *ngIf="copiedCell === rowIndex + '-' + header"
-                            class="fixed rounded bg-gray-800 px-2 py-1 text-xs font-semibold text-white"
-                            [style.left]="copiedPosition.left + 'px'"
-                            [style.top]="copiedPosition.top + 'px'"
-                        >
-                            Copied to clipboard!
-                        </span>
+                        <ng-container *ngIf="isEditing(rowIndex, header); else cellDisplay">
+                            <ng-container [ngSwitch]="inputKind(header)">
+                                <textarea
+                                    *ngSwitchCase="'textarea'"
+                                    [(ngModel)]="editValue"
+                                    (keydown)="onEditKeydown($event, row, header)"
+                                    (blur)="saveEdit(row, header)"
+                                    rows="2"
+                                    class="w-48 rounded border border-blue-400 px-1 text-sm"
+                                    autofocus
+                                ></textarea>
+                                <input
+                                    *ngSwitchCase="'number'"
+                                    type="number"
+                                    [(ngModel)]="editValue"
+                                    (keydown)="onEditKeydown($event, row, header)"
+                                    (blur)="saveEdit(row, header)"
+                                    class="w-28 rounded border border-blue-400 px-1 text-sm"
+                                />
+                                <input
+                                    *ngSwitchCase="'date'"
+                                    type="date"
+                                    [(ngModel)]="editValue"
+                                    (keydown)="onEditKeydown($event, row, header)"
+                                    (blur)="saveEdit(row, header)"
+                                    class="rounded border border-blue-400 px-1 text-sm"
+                                />
+                                <input
+                                    *ngSwitchCase="'datetime'"
+                                    type="datetime-local"
+                                    [(ngModel)]="editValue"
+                                    (keydown)="onEditKeydown($event, row, header)"
+                                    (blur)="saveEdit(row, header)"
+                                    class="rounded border border-blue-400 px-1 text-sm"
+                                />
+                                <input
+                                    *ngSwitchDefault
+                                    type="text"
+                                    [(ngModel)]="editValue"
+                                    (keydown)="onEditKeydown($event, row, header)"
+                                    (blur)="saveEdit(row, header)"
+                                    class="w-40 rounded border border-blue-400 px-1 text-sm"
+                                />
+                            </ng-container>
+                        </ng-container>
+
+                        <ng-template #cellDisplay>
+                            <ng-container [ngSwitch]="inputKind(header)">
+                                <input
+                                    *ngSwitchCase="'checkbox'"
+                                    type="checkbox"
+                                    class="cursor-pointer"
+                                    [checked]="!!row[header]"
+                                    [disabled]="!editable || isPk(header)"
+                                    (change)="toggleBoolean(row, header, $event)"
+                                />
+                                <span
+                                    *ngSwitchDefault
+                                    class="inline-block w-full truncate hover:overflow-visible"
+                                    [ngClass]="{ 'cursor-pointer': editable && !isPk(header) }"
+                                    (click)="copyToClipboard(row[header], rowIndex, header, $event)"
+                                    (dblclick)="tryEdit(rowIndex, header)"
+                                >
+                                    {{ row[header] | truncate : 20 }}
+                                </span>
+                            </ng-container>
+                            <span
+                                *ngIf="copiedCell === rowIndex + '-' + header"
+                                class="fixed rounded bg-gray-800 px-2 py-1 text-xs font-semibold text-white"
+                                [style.left]="copiedPosition.left + 'px'"
+                                [style.top]="copiedPosition.top + 'px'"
+                            >
+                                Copied to clipboard!
+                            </span>
+                        </ng-template>
                     </td>
                 </tr>
             </tbody>
         </table>
+    </div>
+
+    <!-- Delete-row confirm -->
+    <app-modal
+        [open]="!!pendingDelete"
+        title="删除该行？"
+        [destructive]="true"
+        confirmLabel="删除"
+        cancelLabel="取消"
+        (confirm)="confirmDelete()"
+        (cancel)="cancelDelete()"
+    >
+        <p>此操作不可撤销，确定删除这一行吗？</p>
+        <pre class="mt-2 max-h-40 overflow-auto rounded bg-gray-100 p-2 text-xs dark:bg-gray-800">{{ pendingDelete | json }}</pre>
+    </app-modal>
+
+    <!-- Insert-row form -->
+    <app-modal
+        [open]="showInsert"
+        title="新增行"
+        confirmLabel="插入"
+        cancelLabel="取消"
+        (confirm)="confirmInsert()"
+        (cancel)="cancelInsert()"
+    >
+        <div class="max-h-96 space-y-3 overflow-auto pr-1">
+            <div *ngFor="let col of insertableColumns" class="flex flex-col gap-1">
+                <label class="text-xs font-semibold">
+                    {{ col.column_name }}
+                    <span class="font-normal text-gray-400">{{ col.column_type }}{{ isPk(col.column_name) ? ' · PK' : '' }}{{ col.is_nullable === 'NO' ? ' · NOT NULL' : '' }}</span>
+                </label>
+                <ng-container [ngSwitch]="inputKind(col.column_name)">
+                    <input
+                        *ngSwitchCase="'checkbox'"
+                        type="checkbox"
+                        [(ngModel)]="insertModel[col.column_name]"
+                        class="h-4 w-4"
+                    />
+                    <textarea
+                        *ngSwitchCase="'textarea'"
+                        [(ngModel)]="insertModel[col.column_name]"
+                        rows="2"
+                        class="rounded border border-gray-300 px-2 py-1 text-sm dark:border-gray-600 dark:bg-gray-800"
+                    ></textarea>
+                    <input
+                        *ngSwitchCase="'number'"
+                        type="number"
+                        [(ngModel)]="insertModel[col.column_name]"
+                        class="rounded border border-gray-300 px-2 py-1 text-sm dark:border-gray-600 dark:bg-gray-800"
+                    />
+                    <input
+                        *ngSwitchCase="'date'"
+                        type="date"
+                        [(ngModel)]="insertModel[col.column_name]"
+                        class="rounded border border-gray-300 px-2 py-1 text-sm dark:border-gray-600 dark:bg-gray-800"
+                    />
+                    <input
+                        *ngSwitchCase="'datetime'"
+                        type="datetime-local"
+                        [(ngModel)]="insertModel[col.column_name]"
+                        class="rounded border border-gray-300 px-2 py-1 text-sm dark:border-gray-600 dark:bg-gray-800"
+                    />
+                    <input
+                        *ngSwitchDefault
+                        type="text"
+                        [(ngModel)]="insertModel[col.column_name]"
+                        class="rounded border border-gray-300 px-2 py-1 text-sm dark:border-gray-600 dark:bg-gray-800"
+                    />
+                </ng-container>
+            </div>
+            <p class="text-xs text-gray-400">留空的字段将使用数据库默认值。自增列由数据库自动生成。</p>
+        </div>
+    </app-modal>
+
+    <!-- Transient action toast -->
+    <div
+        *ngIf="actionNotice"
+        class="fixed bottom-4 right-4 z-50 rounded px-3 py-2 text-sm font-medium text-white shadow-lg"
+        [ngClass]="actionNotice.kind === 'ok' ? 'bg-green-600' : 'bg-red-600'"
+    >
+        {{ actionNotice.text }}
     </div>
 </div>
