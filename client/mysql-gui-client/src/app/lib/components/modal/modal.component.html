@@ -1,0 +1,52 @@
+<div
+    *ngIf="open"
+    class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 dark:bg-black/70"
+    (click)="onOverlayClick()"
+>
+    <div
+        class="my-10 w-full rounded-lg border border-gray-300 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-900"
+        [ngClass]="widthClass"
+        (click)="onCardClick($event)"
+    >
+        <!-- Header -->
+        <div
+            class="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-700"
+        >
+            <h3 class="text-base font-semibold text-gray-800 dark:text-gray-100">
+                {{ title }}
+            </h3>
+            <button
+                type="button"
+                class="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+                (click)="cancel.emit()"
+            >
+                <span [ngClass]="'icon-[fa-solid--times]'" class="text-lg"></span>
+            </button>
+        </div>
+
+        <!-- Projected body -->
+        <div class="px-4 py-3 text-sm text-gray-700 dark:text-gray-200">
+            <ng-content></ng-content>
+        </div>
+
+        <!-- Footer -->
+        <div
+            class="flex items-center justify-end gap-2 border-t border-gray-200 px-4 py-3 dark:border-gray-700"
+        >
+            <button type="button" class="btn btn-secondary btn-fit" (click)="cancel.emit()">
+                {{ cancelLabel }}
+            </button>
+            <button
+                type="button"
+                class="btn btn-fit"
+                [ngClass]="destructive
+                    ? 'bg-red-500 text-white hover:bg-red-600'
+                    : 'btn-primary'"
+                [disabled]="disableConfirm"
+                (click)="onConfirm()"
+            >
+                {{ confirmLabel }}
+            </button>
+        </div>
+    </div>
+</div>
