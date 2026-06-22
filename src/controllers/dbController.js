@@ -3,6 +3,7 @@ const {
   escapeIdentifier,
   escapeQualified,
 } = require("../utils/sqlIdentifier");
+const { renderColumnDef, assertToken } = require("../utils/sqlColumnDef");
 
 const getDatabases = async (req, res) => {
   try {
@@ -565,6 +566,194 @@ const deleteRow = async (req, res) => {
   }
 };
 
+// ----------------------------------------------------------------------------
+// Structure / DDL endpoints (Phase 2)
+// ----------------------------------------------------------------------------
+
+// POST /api/mysql/database  body: { database, charset?, collation? }
+const createDatabase = async (req, res) => {
+  const { database, charset, collation } = req.body;
+  if (!database) {
+    return res.status(400).json({ error: "database name is required." });
+  }
+  try {
+    let sql = `CREATE DATABASE ${escapeIdentifier(database)}`;
+    if (charset) sql += ` CHARACTER SET ${assertToken(charset, "charset")}`;
+    if (collation) sql += ` COLLATE ${assertToken(collation, "collation")}`;
+    await DBConnector.GetDB().raw(sql);
+    res.status(200).json({ affectedRows: 0, message: "OK" });
+  } catch (err) {
+    console.error("Error creating database:", err);
+    res
+      .status(500)
+      .json({ error: "Error creating database.", detail: err.message });
+  }
+};
+
+// DELETE /api/mysql/database/:dbName
+const dropDatabase = async (req, res) => {
+  const dbName = req.params.dbName;
+  try {
+    await DBConnector.GetDB().raw(`DROP DATABASE ${escapeIdentifier(dbName)}`);
+    res.status(200).json({ affectedRows: 0, message: "OK" });
+  } catch (err) {
+    console.error("Error dropping database:", err);
+    res
+      .status(500)
+      .json({ error: "Error dropping database.", detail: err.message });
+  }
+};
+
+// POST /api/mysql/database/:dbName/table
+// body: { table, columns: ColumnDef[], engine? }
+const createTable = async (req, res) => {
+  const dbName = req.params.dbName;
+  const { table, columns, engine } = req.body;
+  if (!table || !Array.isArray(columns) || columns.length === 0) {
+    return res
+      .status(400)
+      .json({ error: "table and a non-empty columns array are required." });
+  }
+  try {
+    const colDefs = columns.map(renderColumnDef);
+    const pkCols = columns.filter((c) => c.pk).map((c) => c.name);
+    if (pkCols.length) {
+      colDefs.push(`PRIMARY KEY (${pkCols.map(escapeIdentifier).join(", ")})`);
+    }
+    let sql = `CREATE TABLE ${escapeQualified([dbName, table])} (\n  ${colDefs.join(",\n  ")}\n)`;
+    if (engine) sql += ` ENGINE=${assertToken(engine, "engine")}`;
+    await DBConnector.GetDB().raw(sql);
+    res.status(200).json({ affectedRows: 0, message: "OK" });
+  } catch (err) {
+    console.error("Error creating table:", err);
+    res.status(500).json({ error: "Error creating table.", detail: err.message });
+  }
+};
+
+// DELETE /api/mysql/database/:dbName/table/:table
+const dropTable = async (req, res) => {
+  const { dbName, table } = req.params;
+  try {
+    await DBConnector.GetDB().raw(
+      `DROP TABLE ${escapeQualified([dbName, table])}`
+    );
+    res.status(200).json({ affectedRows: 0, message: "OK" });
+  } catch (err) {
+    console.error("Error dropping table:", err);
+    res.status(500).json({ error: "Error dropping table.", detail: err.message });
+  }
+};
+
+// PATCH /api/mysql/database/:dbName/table/:table/rename  body: { newName }
+const renameTable = async (req, res) => {
+  const { dbName, table } = req.params;
+  const { newName } = req.body;
+  if (!newName) {
+    return res.status(400).json({ error: "newName is required." });
+  }
+  try {
+    await DBConnector.GetDB().raw(
+      `RENAME TABLE ${escapeQualified([dbName, table])} TO ${escapeQualified([
+        dbName,
+        newName,
+      ])}`
+    );
+    res.status(200).json({ affectedRows: 0, message: "OK" });
+  } catch (err) {
+    console.error("Error renaming table:", err);
+    res.status(500).json({ error: "Error renaming table.", detail: err.message });
+  }
+};
+
+// POST /api/mysql/database/:dbName/table/:table/truncate
+const truncateTable = async (req, res) => {
+  const { dbName, table } = req.params;
+  try {
+    await DBConnector.GetDB().raw(
+      `TRUNCATE TABLE ${escapeQualified([dbName, table])}`
+    );
+    res.status(200).json({ affectedRows: 0, message: "OK" });
+  } catch (err) {
+    console.error("Error truncating table:", err);
+    res
+      .status(500)
+      .json({ error: "Error truncating table.", detail: err.message });
+  }
+};
+
+// POST /api/mysql/database/:dbName/table/:table/column  body: { column: ColumnDef }
+const addColumn = async (req, res) => {
+  const { dbName, table } = req.params;
+  const { column } = req.body;
+  if (!column || !column.name || !column.type) {
+    return res
+      .status(400)
+      .json({ error: "column with name and type is required." });
+  }
+  try {
+    await DBConnector.GetDB().raw(
+      `ALTER TABLE ${escapeQualified([dbName, table])} ADD COLUMN ${renderColumnDef(
+        column
+      )}`
+    );
+    res.status(200).json({ affectedRows: 0, message: "OK" });
+  } catch (err) {
+    console.error("Error adding column:", err);
+    res.status(500).json({ error: "Error adding column.", detail: err.message });
+  }
+};
+
+// DELETE /api/mysql/database/:dbName/table/:table/column/:column
+const dropColumn = async (req, res) => {
+  const { dbName, table, column } = req.params;
+  try {
+    await DBConnector.GetDB().raw(
+      `ALTER TABLE ${escapeQualified([dbName, table])} DROP COLUMN ${escapeIdentifier(
+        column
+      )}`
+    );
+    res.status(200).json({ affectedRows: 0, message: "OK" });
+  } catch (err) {
+    console.error("Error dropping column:", err);
+    res
+      .status(500)
+      .json({ error: "Error dropping column.", detail: err.message });
+  }
+};
+
+// PATCH /api/mysql/database/:dbName/table/:table/column/:column
+// body: { definition: ColumnDef }  (definition.name may differ from :column to rename)
+const modifyColumn = async (req, res) => {
+  const { dbName, table, column } = req.params;
+  const { definition } = req.body;
+  if (!definition || !definition.name || !definition.type) {
+    return res
+      .status(400)
+      .json({ error: "definition with name and type is required." });
+  }
+  try {
+    // MODIFY COLUMN cannot rename; use CHANGE COLUMN when the name changed.
+    const sql =
+      definition.name === column
+        ? `ALTER TABLE ${escapeQualified([dbName, table])} MODIFY COLUMN ${renderColumnDef(
+            definition
+          )}`
+        : `ALTER TABLE ${escapeQualified([
+            dbName,
+            table,
+          ])} CHANGE COLUMN ${escapeIdentifier(column)} ${renderColumnDef(
+            definition
+          )}`;
+    await DBConnector.GetDB().raw(sql);
+    res.status(200).json({ affectedRows: 0, message: "OK" });
+  } catch (err) {
+    console.error("Error modifying column:", err);
+    res
+      .status(500)
+      .json({ error: "Error modifying column.", detail: err.message });
+  }
+};
+
 module.exports = {
   getDatabases,
   getTables,
@@ -574,4 +763,13 @@ module.exports = {
   insertRow,
   updateRow,
   deleteRow,
+  createDatabase,
+  dropDatabase,
+  createTable,
+  dropTable,
+  renameTable,
+  truncateTable,
+  addColumn,
+  dropColumn,
+  modifyColumn,
 };
