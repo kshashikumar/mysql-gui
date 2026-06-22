@@ -84,9 +84,20 @@ const getTableInfo = async (req, res) => {
     const columns = await DBConnector.GetDB().raw(
       `
               SELECT 
-                COLUMN_NAME AS column_name
+                COLUMN_NAME AS column_name,
+                COLUMN_KEY AS column_key,
+                DATA_TYPE AS data_type,
+                COLUMN_TYPE AS column_type,
+                IS_NULLABLE AS is_nullable,
+                COLUMN_DEFAULT AS column_default,
+                EXTRA AS extra,
+                ORDINAL_POSITION AS ordinal_position,
+                CHARACTER_MAXIMUM_LENGTH AS character_maximum_length,
+                NUMERIC_PRECISION AS numeric_precision,
+                NUMERIC_SCALE AS numeric_scale
                 FROM INFORMATION_SCHEMA.COLUMNS
                 WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?
+                ORDER BY ORDINAL_POSITION
             `,
       [dbName, table]
     );
@@ -94,9 +105,13 @@ const getTableInfo = async (req, res) => {
     const indexes = await DBConnector.GetDB().raw(
       `
                 SELECT 
-                  INDEX_NAME AS index_name
+                  INDEX_NAME AS index_name,
+                  COLUMN_NAME AS column_name,
+                  SEQ_IN_INDEX AS seq_in_index,
+                  NON_UNIQUE AS non_unique
                 FROM INFORMATION_SCHEMA.STATISTICS
                 WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?
+                ORDER BY INDEX_NAME, SEQ_IN_INDEX
               `,
       [dbName, table]
     );
@@ -141,7 +156,6 @@ const getTableInfo = async (req, res) => {
 const getMultipleTablesInfo = async (req, res) => {
   const dbName = req.params.dbName;
   const { tables } = req.body;
-  console;
 
   if (!dbName || !tables || !Array.isArray(tables) || tables.length === 0) {
     return res
@@ -157,9 +171,20 @@ const getMultipleTablesInfo = async (req, res) => {
       const columns = await DBConnector.GetDB().raw(
         `
         SELECT 
-          COLUMN_NAME AS column_name
+          COLUMN_NAME AS column_name,
+          COLUMN_KEY AS column_key,
+          DATA_TYPE AS data_type,
+          COLUMN_TYPE AS column_type,
+          IS_NULLABLE AS is_nullable,
+          COLUMN_DEFAULT AS column_default,
+          EXTRA AS extra,
+          ORDINAL_POSITION AS ordinal_position,
+          CHARACTER_MAXIMUM_LENGTH AS character_maximum_length,
+          NUMERIC_PRECISION AS numeric_precision,
+          NUMERIC_SCALE AS numeric_scale
         FROM INFORMATION_SCHEMA.COLUMNS
         WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?
+        ORDER BY ORDINAL_POSITION
         `,
         [dbName, table]
       );
@@ -168,9 +193,13 @@ const getMultipleTablesInfo = async (req, res) => {
       const indexes = await DBConnector.GetDB().raw(
         `
         SELECT 
-          INDEX_NAME AS index_name
+          INDEX_NAME AS index_name,
+          COLUMN_NAME AS column_name,
+          SEQ_IN_INDEX AS seq_in_index,
+          NON_UNIQUE AS non_unique
         FROM INFORMATION_SCHEMA.STATISTICS
         WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?
+        ORDER BY INDEX_NAME, SEQ_IN_INDEX
         `,
         [dbName, table]
       );
