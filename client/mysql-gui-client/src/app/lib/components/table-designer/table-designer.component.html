@@ -1,0 +1,160 @@
+<!-- ===================== CREATE MODE ===================== -->
+<ng-container *ngIf="mode === 'create'">
+    <div class="mb-3">
+        <label class="mb-1 block text-xs font-semibold">表名</label>
+        <input
+            [(ngModel)]="newTableName"
+            placeholder="例如 users"
+            class="w-full rounded border border-gray-300 px-2 py-1 text-sm dark:border-gray-600 dark:bg-gray-800"
+        />
+    </div>
+
+    <div class="space-y-2">
+        <div
+            *ngFor="let r of rows; let i = index"
+            class="flex flex-wrap items-center gap-2 rounded border border-gray-200 p-2 dark:border-gray-700"
+        >
+            <input
+                [(ngModel)]="r.name"
+                placeholder="列名"
+                class="w-28 rounded border border-gray-300 px-2 py-1 text-sm dark:border-gray-600 dark:bg-gray-800"
+            />
+            <input
+                [(ngModel)]="r.type"
+                placeholder="VARCHAR(255)"
+                class="w-40 rounded border border-gray-300 px-2 py-1 text-sm dark:border-gray-600 dark:bg-gray-800"
+            />
+            <label class="flex items-center gap-1 text-xs">
+                <input type="checkbox" [(ngModel)]="r.nullable" /> NULL
+            </label>
+            <input
+                [(ngModel)]="r.default"
+                placeholder="默认值"
+                class="w-28 rounded border border-gray-300 px-2 py-1 text-sm dark:border-gray-600 dark:bg-gray-800"
+            />
+            <label class="flex items-center gap-1 text-xs">
+                <input type="checkbox" [(ngModel)]="r.autoIncrement" /> 自增
+            </label>
+            <label class="flex items-center gap-1 text-xs">
+                <input type="checkbox" [(ngModel)]="r.pk" /> PK
+            </label>
+            <button
+                type="button"
+                (click)="removeRow(i)"
+                class="rounded p-1 text-gray-400 hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900"
+                title="移除该列"
+            >
+                <span [ngClass]="'icon-[fa-solid--times]'"></span>
+            </button>
+        </div>
+    </div>
+
+    <button
+        type="button"
+        (click)="addRow()"
+        class="mt-2 rounded border border-dashed border-gray-300 px-3 py-1 text-sm text-gray-600 hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-800"
+    >
+        + 添加列
+    </button>
+
+    <p *ngIf="error" class="mt-2 text-sm text-red-600">{{ error }}</p>
+
+    <div class="mt-4 flex justify-end gap-2">
+        <button type="button" class="btn btn-secondary btn-fit" (click)="cancel.emit()">取消</button>
+        <button type="button" class="btn btn-primary btn-fit" [disabled]="busy" (click)="createTable()">
+            {{ busy ? '创建中…' : '创建表' }}
+        </button>
+    </div>
+</ng-container>
+
+<!-- ===================== ALTER MODE ===================== -->
+<ng-container *ngIf="mode === 'alter'">
+    <p *ngIf="loading" class="py-4 text-center text-gray-500">加载表结构…</p>
+
+    <div *ngIf="!loading" class="space-y-1">
+        <div
+            *ngFor="let c of existingColumns; let i = index"
+            class="flex flex-wrap items-center gap-2 rounded border border-gray-200 px-2 py-1 text-sm dark:border-gray-700"
+        >
+            <ng-container *ngIf="editingCol !== i; else editTpl">
+                <span class="font-mono font-medium">{{ c.column_name }}</span>
+                <span class="text-gray-400">{{ c.column_type }}</span>
+                <span class="rounded bg-gray-100 px-1 text-xs dark:bg-gray-800">
+                    {{ c.is_nullable === 'NO' ? 'NOT NULL' : 'NULL' }}
+                </span>
+                <span *ngIf="c.column_default !== null" class="text-xs text-gray-400">
+                    default {{ c.column_default }}
+                </span>
+                <span *ngIf="c.column_key === 'PRI'" class="rounded bg-blue-100 px-1 text-xs text-blue-700 dark:bg-blue-900 dark:text-blue-200">PK</span>
+                <div class="ml-auto flex gap-1">
+                    <button type="button" (click)="startEdit(i)" class="rounded px-2 py-0.5 text-xs hover:bg-gray-100 dark:hover:bg-gray-800">改</button>
+                    <button type="button" (click)="dropColumn(i)" class="rounded px-2 py-0.5 text-xs text-red-500 hover:bg-red-100 dark:hover:bg-red-900">删</button>
+                </div>
+            </ng-container>
+            <ng-template #editTpl>
+                <input
+                    [(ngModel)]="editDraft.name"
+                    placeholder="列名"
+                    class="w-28 rounded border border-blue-400 px-2 py-1 text-sm"
+                />
+                <input
+                    [(ngModel)]="editDraft.type"
+                    placeholder="VARCHAR(255)"
+                    class="w-40 rounded border border-blue-400 px-2 py-1 text-sm"
+                />
+                <label class="flex items-center gap-1 text-xs">
+                    <input type="checkbox" [(ngModel)]="editDraft.nullable" /> NULL
+                </label>
+                <input
+                    [(ngModel)]="editDraft.default"
+                    placeholder="默认值"
+                    class="w-28 rounded border border-blue-400 px-2 py-1 text-sm"
+                />
+                <label class="flex items-center gap-1 text-xs">
+                    <input type="checkbox" [(ngModel)]="editDraft.autoIncrement" /> 自增
+                </label>
+                <div class="ml-auto flex gap-1">
+                    <button type="button" (click)="saveEdit()" class="rounded bg-green-500 px-2 py-0.5 text-xs text-white">保存</button>
+                    <button type="button" (click)="cancelEdit()" class="rounded px-2 py-0.5 text-xs hover:bg-gray-100 dark:hover:bg-gray-800">取消</button>
+                </div>
+            </ng-template>
+        </div>
+    </div>
+
+    <!-- Add column -->
+    <div *ngIf="!loading" class="mt-4 border-t border-gray-200 pt-3 dark:border-gray-700">
+        <p class="mb-2 text-xs font-semibold">添加列</p>
+        <div class="flex flex-wrap items-center gap-2">
+            <input
+                [(ngModel)]="addCol.name"
+                placeholder="列名"
+                class="w-28 rounded border border-gray-300 px-2 py-1 text-sm dark:border-gray-600 dark:bg-gray-800"
+            />
+            <input
+                [(ngModel)]="addCol.type"
+                placeholder="VARCHAR(255)"
+                class="w-40 rounded border border-gray-300 px-2 py-1 text-sm dark:border-gray-600 dark:bg-gray-800"
+            />
+            <label class="flex items-center gap-1 text-xs">
+                <input type="checkbox" [(ngModel)]="addCol.nullable" /> NULL
+            </label>
+            <input
+                [(ngModel)]="addCol.default"
+                placeholder="默认值"
+                class="w-28 rounded border border-gray-300 px-2 py-1 text-sm dark:border-gray-600 dark:bg-gray-800"
+            />
+            <label class="flex items-center gap-1 text-xs">
+                <input type="checkbox" [(ngModel)]="addCol.autoIncrement" /> 自增
+            </label>
+            <button type="button" (click)="addColumn()" [disabled]="busy" class="btn btn-primary btn-fit h-8 text-xs">
+                添加
+            </button>
+        </div>
+    </div>
+
+    <p *ngIf="error" class="mt-2 text-sm text-red-600">{{ error }}</p>
+
+    <div *ngIf="!loading" class="mt-4 flex justify-end">
+        <button type="button" class="btn btn-secondary btn-fit" (click)="cancel.emit()">关闭</button>
+    </div>
+</ng-container>

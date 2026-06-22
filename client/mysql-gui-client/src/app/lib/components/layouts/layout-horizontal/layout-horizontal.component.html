@@ -1,10 +1,19 @@
 <div class="flex h-screen flex-col overflow-hidden">
-    <app-navbar (aiEnabledEmitter)="handleOpenAIEvent($event)"></app-navbar>
+    <app-navbar
+        (aiEnabledEmitter)="handleOpenAIEvent($event)"
+        (createDatabaseEmitter)="onCreateDatabase()"
+    ></app-navbar>
     <div class="flex flex-grow overflow-hidden rounded-md bg-gray-300 dark:bg-gray-800">
         <div class="m-1 h-full w-64 bg-gray-100 dark:bg-gray-900">
             <app-sidebar
                 (newTabEmitter)="handleNewTabData($event)"
                 (initDBInfoEmitter)="handleInitData($event)"
+                (createTableEmitter)="onCreateTable($event)"
+                (dropDatabaseEmitter)="onDropDatabase($event)"
+                (designTableEmitter)="onDesignTable($event)"
+                (renameTableEmitter)="onRenameTable($event)"
+                (truncateTableEmitter)="onTruncateTable($event)"
+                (dropTableEmitter)="onDropTable($event)"
             ></app-sidebar>
         </div>
         <div class="m-1 flex-grow overflow-hidden bg-gray-100 dark:bg-gray-900">
@@ -17,4 +26,125 @@
             </main>
         </div>
     </div>
+
+    <!-- Create database -->
+    <app-modal
+        [open]="ddlModal?.kind === 'createDatabase'"
+        title="新建数据库"
+        confirmLabel="创建"
+        cancelLabel="取消"
+        [disableConfirm]="ddlBusy"
+        (confirm)="confirmCreateDatabase()"
+        (cancel)="closeDdl()"
+    >
+        <div class="flex flex-col gap-1">
+            <label class="text-xs font-semibold">数据库名</label>
+            <input
+                [(ngModel)]="newDbName"
+                placeholder="例如 shop"
+                class="rounded border border-gray-300 px-2 py-1 text-sm dark:border-gray-600 dark:bg-gray-800"
+            />
+            <p *ngIf="ddlError" class="text-xs text-red-600">{{ ddlError }}</p>
+        </div>
+    </app-modal>
+
+    <!-- Drop database -->
+    <app-modal
+        [open]="ddlModal?.kind === 'dropDatabase'"
+        title="删除数据库？"
+        [destructive]="true"
+        confirmLabel="删除"
+        cancelLabel="取消"
+        [disableConfirm]="ddlBusy"
+        (confirm)="confirmDropDatabase()"
+        (cancel)="closeDdl()"
+    >
+        <p>将永久删除数据库 <b>{{ modalDbName }}</b> 及其中所有表，此操作不可撤销。</p>
+        <p *ngIf="ddlError" class="mt-2 text-xs text-red-600">{{ ddlError }}</p>
+    </app-modal>
+
+    <!-- Create table (designer) -->
+    <app-modal
+        [open]="ddlModal?.kind === 'createTable'"
+        title="新建表"
+        width="lg"
+        [hideFooter]="true"
+        (cancel)="closeDdl()"
+    >
+        <app-table-designer
+            *ngIf="ddlModal?.kind === 'createTable'"
+            mode="create"
+            [dbName]="modalDbName"
+            (done)="onDesignerDone()"
+            (cancel)="closeDdl()"
+        ></app-table-designer>
+    </app-modal>
+
+    <!-- Design / alter table (designer) -->
+    <app-modal
+        [open]="ddlModal?.kind === 'designTable'"
+        [title]="modalTableName ? '设计表 · ' + modalTableName : '设计表'"
+        width="lg"
+        [hideFooter]="true"
+        (cancel)="closeDdl()"
+    >
+        <app-table-designer
+            *ngIf="ddlModal?.kind === 'designTable'"
+            mode="alter"
+            [dbName]="modalDbName"
+            [tableName]="modalTableName"
+            (done)="onDesignerDone()"
+            (cancel)="closeDdl()"
+        ></app-table-designer>
+    </app-modal>
+
+    <!-- Rename table -->
+    <app-modal
+        [open]="ddlModal?.kind === 'renameTable'"
+        title="重命名表"
+        confirmLabel="重命名"
+        cancelLabel="取消"
+        [disableConfirm]="ddlBusy"
+        (confirm)="confirmRenameTable()"
+        (cancel)="closeDdl()"
+    >
+        <div class="flex flex-col gap-1">
+            <label class="text-xs font-semibold">新表名</label>
+            <input
+                [(ngModel)]="renameTo"
+                class="rounded border border-gray-300 px-2 py-1 text-sm dark:border-gray-600 dark:bg-gray-800"
+            />
+            <p *ngIf="ddlError" class="text-xs text-red-600">{{ ddlError }}</p>
+        </div>
+    </app-modal>
+
+    <!-- Truncate table -->
+    <app-modal
+        [open]="ddlModal?.kind === 'truncateTable'"
+        title="清空表？"
+        [destructive]="true"
+        confirmLabel="清空"
+        cancelLabel="取消"
+        [disableConfirm]="ddlBusy"
+        (confirm)="confirmTruncateTable()"
+        (cancel)="closeDdl()"
+    >
+        <p>将删除表 <b>{{ modalTableName }}</b> 中的<b>所有数据</b>（保留表结构），此操作不可撤销。</p>
+        <p *ngIf="ddlError" class="mt-2 text-xs text-red-600">{{ ddlError }}</p>
+    </app-modal>
+
+    <!-- Drop table -->
+    <app-modal
+        [open]="ddlModal?.kind === 'dropTable'"
+        title="删除表？"
+        [destructive]="true"
+        confirmLabel="删除"
+        cancelLabel="取消"
+        [disableConfirm]="ddlBusy"
+        (confirm)="confirmDropTable()"
+        (cancel)="closeDdl()"
+    >
+        <p>将永久删除表 <b>{{ modalTableName }}</b> 及其所有数据，此操作不可撤销。</p>
+        <p *ngIf="ddlError" class="mt-2 text-xs text-red-600">{{ ddlError }}</p>
+    </app-modal>
 </div>

@@ -31,6 +31,7 @@
 
         <!-- Footer -->
         <div
+            *ngIf="!hideFooter"
             class="flex items-center justify-end gap-2 border-t border-gray-200 px-4 py-3 dark:border-gray-700"
         >
             <button type="button" class="btn btn-secondary btn-fit" (click)="cancel.emit()">

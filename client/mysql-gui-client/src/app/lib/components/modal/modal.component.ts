@@ -27,6 +27,7 @@ export class ModalComponent {
     @Input() cancelLabel = 'Cancel';
     @Input() destructive = false;
     @Input() disableConfirm = false;
+    @Input() hideFooter = false;
 
     @Output() confirm = new EventEmitter<void>();
     @Output() cancel = new EventEmitter<void>();

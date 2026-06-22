@@ -77,6 +77,18 @@
                                 </ng-template>
                             </span>
                             <span>{{ database?.name }}</span>
+                            <span class="ml-auto mr-2 flex items-center gap-2 opacity-50 hover:opacity-100">
+                                <span
+                                    [ngClass]="'icon-[fa-solid--plus]'"
+                                    title="新建表"
+                                    (click)="emitCreateTable(database?.name); $event.stopPropagation()"
+                                ></span>
+                                <span
+                                    [ngClass]="'icon-[fa-solid--trash]'"
+                                    title="删除数据库"
+                                    (click)="emitDropDatabase(database?.name); $event.stopPropagation()"
+                                ></span>
+                            </span>
                         </div>
 
                         <div
@@ -136,11 +148,33 @@
                                         </span>
                                         <span class="flex items-center justify-between">
                                             {{ table.name }}
-                                            <span
-                                                class="text-md mr-5 opacity-50 transition-opacity duration-300 hover:opacity-100"
-                                                [ngClass]="'icon-[fluent--table-lightning-24-regular]'"
-                                                (click)="openNewTab(database?.name, table.name)"
-                                            ></span>
+                                            <span class="mr-5 flex items-center gap-2 opacity-50 transition-opacity duration-300 hover:opacity-100">
+                                                <span
+                                                    [ngClass]="'icon-[fluent--table-lightning-24-regular]'"
+                                                    title="打开数据"
+                                                    (click)="openNewTab(database?.name, table.name); $event.stopPropagation()"
+                                                ></span>
+                                                <span
+                                                    [ngClass]="'icon-[fa-solid--pen]'"
+                                                    title="设计 / 改结构"
+                                                    (click)="emitDesignTable(database?.name, table.name); $event.stopPropagation()"
+                                                ></span>
+                                                <span
+                                                    [ngClass]="'icon-[fa-solid--i-cursor]'"
+                                                    title="重命名"
+                                                    (click)="emitRenameTable(database?.name, table.name); $event.stopPropagation()"
+                                                ></span>
+                                                <span
+                                                    [ngClass]="'icon-[fa-solid--eraser]'"
+                                                    title="清空表"
+                                                    (click)="emitTruncateTable(database?.name, table.name); $event.stopPropagation()"
+                                                ></span>
+                                                <span
+                                                    [ngClass]="'icon-[fa-solid--trash]'"
+                                                    title="删除表"
+                                                    (click)="emitDropTable(database?.name, table.name); $event.stopPropagation()"
+                                                ></span>
+                                            </span>
                                         </span>
                                     </div>
 
@@ -267,7 +301,7 @@
                                                 *ngFor="let foreign_key of table.foreign_keys"
                                                 class="mb-1"
                                             >
-                                                {{ column.foreign_key }}
+                                                {{ foreign_key.fk_name }}
                                             </li>
                                         </ul>
 
@@ -304,10 +338,10 @@
                                         >
                                             <!-- Iterate over table.indexes -->
                                             <li
-                                                *ngFor="let foreign_key of table.triggers"
+                                                *ngFor="let trigger of table.triggers"
                                                 class="mb-1"
                                             >
-                                                {{ column.foreign_key }}
+                                                {{ trigger.trigger_name }}
                                             </li>
                                         </ul>
                                     </div>

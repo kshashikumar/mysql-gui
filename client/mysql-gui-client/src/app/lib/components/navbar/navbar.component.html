@@ -20,6 +20,14 @@
 
         <nav class="flex items-center space-x-3">
             <button
+                type="button"
+                class="flex items-center space-x-1 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-blue-700"
+                (click)="emitCreateDatabase()"
+            >
+                <span [ngClass]="'icon-[fa-solid--database]'" class="text-sm"></span>
+                <span>新建数据库</span>
+            </button>
+            <button
                 class="relative flex h-8 w-20 items-center rounded-full bg-gray-200 transition-colors duration-300 focus:outline-none dark:bg-gray-700"
                 (click)="toggleAI()"
             >

@@ -19,6 +19,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
     currentTheme!: AppTheme | null;
     aiEnabled: boolean = false;
     @Output() aiEnabledEmitter = new EventEmitter<any>();
+    @Output() createDatabaseEmitter = new EventEmitter<void>();
 
     private readonly _themeService = inject(ThemeService);
 
@@ -38,6 +39,10 @@ export class NavbarComponent implements OnInit, OnDestroy {
     toggleAI() {
         this.aiEnabled = !this.aiEnabled;
         this.aiEnabledEmitter.emit({ openAIEnabled: this.aiEnabled });
+    }
+
+    emitCreateDatabase() {
+        this.createDatabaseEmitter.emit();
     }
 
     toggleTheme(): void {

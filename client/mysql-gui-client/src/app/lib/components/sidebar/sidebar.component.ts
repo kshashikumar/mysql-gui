@@ -25,6 +25,13 @@ export class SideBarComponent implements OnInit {
     private readonly _router = inject(Router);
     @Output() newTabEmitter = new EventEmitter<newTabData>();
     @Output() initDBInfoEmitter = new EventEmitter<any>();
+    // Structure / DDL entry points (Phase 5)
+    @Output() createTableEmitter = new EventEmitter<{ dbName: string }>();
+    @Output() dropDatabaseEmitter = new EventEmitter<{ dbName: string }>();
+    @Output() designTableEmitter = new EventEmitter<{ dbName: string; tableName: string }>();
+    @Output() renameTableEmitter = new EventEmitter<{ dbName: string; tableName: string }>();
+    @Output() truncateTableEmitter = new EventEmitter<{ dbName: string; tableName: string }>();
+    @Output() dropTableEmitter = new EventEmitter<{ dbName: string; tableName: string }>();
 
     databases: any = {};
     filteredDatabases: any = [];
@@ -148,5 +155,29 @@ export class SideBarComponent implements OnInit {
 
     openNewTab(dbName: string, tableName: string) {
         this.newTabEmitter.emit({ dbName: dbName, tableName: tableName });
+    }
+
+    emitCreateTable(dbName: string) {
+        this.createTableEmitter.emit({ dbName });
+    }
+
+    emitDropDatabase(dbName: string) {
+        this.dropDatabaseEmitter.emit({ dbName });
+    }
+
+    emitDesignTable(dbName: string, tableName: string) {
+        this.designTableEmitter.emit({ dbName, tableName });
+    }
+
+    emitRenameTable(dbName: string, tableName: string) {
+        this.renameTableEmitter.emit({ dbName, tableName });
+    }
+
+    emitTruncateTable(dbName: string, tableName: string) {
+        this.truncateTableEmitter.emit({ dbName, tableName });
+    }
+
+    emitDropTable(dbName: string, tableName: string) {
+        this.dropTableEmitter.emit({ dbName, tableName });
     }
 }
